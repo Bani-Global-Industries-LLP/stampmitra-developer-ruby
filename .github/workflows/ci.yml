@@ -35,7 +35,7 @@ jobs:
     env:
       BUNDLE_WITHOUT: lint:docs:audit
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
@@ -53,7 +53,7 @@ jobs:
     env:
       BUNDLE_WITHOUT: docs:audit
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
@@ -66,7 +66,7 @@ jobs:
     env:
       BUNDLE_WITHOUT: lint:audit
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
@@ -85,7 +85,7 @@ jobs:
     env:
       BUNDLE_WITHOUT: test:lint:docs
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
@@ -101,8 +101,8 @@ jobs:
       STAMPMITRA_SPEC_DIR: ${{ github.workspace }}/.openapi
       CONFORMANCE_REQUIRED: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: Bani-Global-Industries-LLP/stampmitra-developer-openapi
           path: .openapi
@@ -128,6 +128,6 @@ jobs:
   actionlint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: actionlint (with shellcheck)
         run: docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.7 -color
