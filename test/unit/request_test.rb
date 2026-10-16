@@ -179,4 +179,17 @@ class RequestTest < Minitest::Test
     assert_equal({ 'code' => 'DL' }, array[1])
     assert_equal({ 'items' => [{ 'code' => 'MH' }, { 'code' => 'DL' }] }, array.to_h)
   end
+
+  def test_one_client_is_safe_to_share_between_threads
+    seen = Queue.new
+    adapter = lambda do |**request|
+      seen << request[:headers]['Idempotency-Key']
+      { status: 200, headers: {}, body: '{"referenceId":"r","valid":true}' }
+    end
+    client = StampMitra::Client.new(api_key: KEY, adapter: adapter)
+    threads = Array.new(16) { Thread.new { 10.times.map { client.verify.pan(pan: 'ABCDE1234F').valid? } } }
+    assert_equal [true] * 160, threads.flat_map(&:value)
+    keys = Array.new(seen.size) { seen.pop }
+    assert_equal 160, keys.uniq.size, 'every call must get its own Idempotency-Key'
+  end
 end

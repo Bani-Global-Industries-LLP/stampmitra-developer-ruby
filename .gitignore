@@ -12,3 +12,4 @@ Gemfile.lock
 .env.*
 !.env.example
 *.log
+/.openapi/
