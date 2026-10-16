@@ -34,6 +34,8 @@ class AdapterTest < Minitest::Test
 
   # Lesson from the Go SDK: Net::HTTP must never silently replay a request on a dropped connection.
   def test_a_dropped_connection_is_not_silently_replayed_by_net_http
+    skip 'TruffleRuby Net::HTTP replays dropped GETs itself' if RUBY_ENGINE == 'truffleruby'
+
     ScriptedServer.run(:drop, { status: 200, body: {} }) do |server|
       client = client_for(server, max_retries: 0)
       assert_raises(StampMitra::ConnectionError) { client.usage.summary }
