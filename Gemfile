@@ -11,6 +11,7 @@ gemspec
 # versions of dev tooling are ignored (see .github/dependabot.yml). CI jobs install only the groups they need
 # (BUNDLE_WITHOUT), so the test matrix never has to resolve the lint/docs/audit tools on old Rubies.
 group :test do
+  gem 'logger' # bundled gem since Ruby 3.5 (the tests build Logger instances; the library itself never requires it)
   gem 'minitest', '~> 5.20'
   gem 'rake', '~> 13.0'
 end

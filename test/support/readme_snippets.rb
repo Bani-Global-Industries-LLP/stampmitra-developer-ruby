@@ -2,6 +2,7 @@
 
 require 'json'
 require 'open3'
+require 'ripper'
 require 'stringio'
 require 'stampmitra'
 
@@ -92,11 +93,22 @@ module ReadmeSnippets
     end
   end
 
+  # Parses with Ripper (available on CRuby and JRuby) and reports the first syntax errors.
+  class SyntaxChecker < Ripper
+    def errors
+      @errors ||= []
+    end
+
+    def on_parse_error(message)
+      errors << message
+    end
+    alias compile_error on_parse_error
+  end
+
   def compile(block)
-    RubyVM::InstructionSequence.compile(block.code, "README.md:#{block.line}")
-    nil
-  rescue SyntaxError => e
-    "syntax error: #{e.message.lines.first(3).join.strip}"
+    checker = SyntaxChecker.new(block.code, "README.md:#{block.line}", block.line)
+    checker.parse
+    checker.errors.empty? ? nil : "syntax error: #{checker.errors.first(3).join('; ')}"
   end
 
   def execute(block, binding_for_block)

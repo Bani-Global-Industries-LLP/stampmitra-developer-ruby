@@ -43,7 +43,7 @@ class LoggingTest < Minitest::Test
 
   def test_authorization_header_is_redacted_and_other_headers_remain
     log = logged { |client| client.usage.summary(options: { headers: { 'X-Trace' => 'trace-1', 'X-Custom-Secret' => 'visible' } }) }
-    assert_match(/"Authorization"=>"\[REDACTED\]"/, log)
+    assert_includes log, '"Authorization":"[REDACTED]"'
     assert_includes log, 'trace-1'
     refute_includes log, 'Bearer'
   end

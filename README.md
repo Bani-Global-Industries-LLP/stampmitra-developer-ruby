@@ -273,6 +273,9 @@ Disable with `validate_input: false` to let the API decide.
 Pass a standard `Logger` as `logger:` to get debug logs of requests and responses. `Authorization` and `x-api-key` are redacted, and
 identifiers (PAN, GSTIN, account numbers) and names in bodies are masked. Nothing is logged by default.
 
+On Ruby 3.5 and newer `logger` is a bundled gem: add `gem 'logger'` to your Gemfile if you pass a `Logger` (the gem itself never
+requires it; any object responding to `debug` works).
+
 ```ruby
 require 'logger'
 logged = StampMitra::Client.new(api_key: ENV['STAMPMITRA_API_KEY'], logger: Logger.new($stderr, level: Logger::DEBUG))
@@ -292,7 +295,7 @@ logged.usage.summary
 
 ## Supported versions
 
-CI runs the test suite on Ruby 3.0, 3.1, 3.2, 3.3 and 3.4. JRuby and TruffleRuby are not part of the CI matrix. Only the latest
+CI runs the test suite on CRuby 3.0, 3.1, 3.2, 3.3, 3.4 and 4.0, plus JRuby and TruffleRuby as non-blocking jobs. Only the latest
 minor release receives fixes while the SDK is pre-1.0. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Development

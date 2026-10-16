@@ -4,7 +4,6 @@ require 'json'
 require 'securerandom'
 require 'time'
 require 'uri'
-require 'logger'
 
 module StampMitra
   # Builds requests, sends them through the HTTP adapter, retries safely and maps
@@ -261,7 +260,7 @@ module StampMitra
     def log_request(call, attempt)
       debug do
         "stampmitra request attempt=#{attempt} #{call.verb.to_s.upcase} #{call.url} " \
-          "headers=#{Redaction.headers(call.headers).inspect} body=#{Redaction.body(call.payload)}"
+          "headers=#{JSON.generate(Redaction.headers(call.headers))} body=#{Redaction.body(call.payload)}"
       end
     end
 
