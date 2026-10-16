@@ -1,0 +1,114 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Runs every example for real:
+#   * the plain scripts (verify PAN, create order, logs pagination) against the spec repo's mock server;
+#   * the Sinatra and Rack webhook receivers as real servers, hit with signed, tampered and stale deliveries;
+#   * the Rails controller snippet is syntax-checked here (ruby -c) and executed in test/unit/rails_example_test.rb.
+#
+#   bundle install --gemfile examples/Gemfile      # sinatra, rack, rackup, webrick (examples only)
+#   ruby scripts/run-examples
+#
+# The mock server is located like in the conformance tests (see test/support/mock_server.rb).
+$LOAD_PATH.unshift File.expand_path('../lib', __dir__)
+require 'open3'
+require 'net/http'
+require 'socket'
+require 'json'
+require 'stampmitra'
+require_relative '../test/support/mock_server'
+
+ROOT = File.expand_path('..', __dir__)
+KEY = 'sk_test_exampleKey0001'
+SECRET = 'whsec_example_0123456789'
+failures = []
+
+check = lambda do |name, ok, detail = nil|
+  puts "#{ok ? 'ok  ' : 'FAIL'} #{name}#{" - #{detail}" if detail}"
+  failures << name unless ok
+end
+
+base = MockServer.url
+env = { 'STAMPMITRA_API_KEY' => KEY, 'STAMPMITRA_BASE_URL' => base }
+
+# ---- plain scripts ------------------------------------------------------------------------------
+{
+  'examples/verify_pan.rb' => [%w[ABCDE1234F], /valid name-match=.* reference=SMV-/],
+  'examples/create_order.rb' => [[], /created \S+ at .*\nstatus: .*\ndocuments: .*HTTP 200, 1 attempt/],
+  'examples/list_logs.rb' => [[], /pan\.verify.*\npage of \d+, next cursor:/]
+}.each do |script, (args, pattern)|
+  out, status = Open3.capture2e(env, RbConfig.ruby, File.join(ROOT, script), *args)
+  check.call(script, status.success? && out.match?(pattern), status.success? ? nil : out.lines.first(3).join)
+end
+
+out, status = Open3.capture2e(env, RbConfig.ruby, File.join(ROOT, 'examples/verify_pan.rb'), 'not-a-pan')
+check.call('examples/verify_pan.rb rejects bad input locally (exit 2, nothing sent)', status.exitstatus == 2 && out.include?('rejected (pan)'))
+
+# ---- Rails snippet: syntax only here ------------------------------------------------------------
+_, status = Open3.capture2e(RbConfig.ruby, '-c', File.join(ROOT, 'examples/rails_webhooks_controller.rb'))
+check.call('examples/rails_webhooks_controller.rb syntax (ruby -c)', status.success?)
+
+# ---- webhook receivers as real servers ----------------------------------------------------------
+def free_port
+  TCPServer.open('127.0.0.1', 0) { |s| s.addr[1] }
+end
+
+def wait_for(port) # rubocop:disable Naming/PredicateMethod
+  60.times do
+    TCPSocket.new('127.0.0.1', port).close
+    return true
+  rescue SystemCallError
+    sleep 0.25
+  end
+  false
+end
+
+def post(port, path, body, headers)
+  http = Net::HTTP.new('127.0.0.1', port)
+  http.max_retries = 0
+  request = Net::HTTP::Post.new(path, { 'Content-Type' => 'application/json', 'Connection' => 'close' }.merge(headers))
+  request.body = body
+  http.start { |conn| conn.request(request) }
+end
+
+payload = '{"coreOrderId":"core_order_1","coreEventType":"DOCUMENT_READY","occurredAt":"2026-10-16T09:00:00.000Z"}'
+now = Time.now.to_i
+deliveries = {
+  good: [payload, now, 200],
+  tampered: [payload.sub('core_order_1', 'core_order_2'), now, 400],
+  stale: [payload, now - 3600, 400]
+}
+examples_env = { 'STAMPMITRA_WEBHOOK_SECRET' => SECRET, 'BUNDLE_GEMFILE' => File.join(ROOT, 'examples', 'Gemfile') }
+servers = {
+  'examples/sinatra_webhook.rb' => [->(port) { ['bundle', 'exec', 'ruby', 'examples/sinatra_webhook.rb', '-p', port.to_s, '-o', '127.0.0.1', '-e', 'production'] },
+                                    '/webhooks/stampmitra'],
+  'examples/rack_webhook.ru' => [->(port) { ['bundle', 'exec', 'rackup', 'examples/rack_webhook.ru', '-p', port.to_s, '-o', '127.0.0.1', '-s', 'webrick'] }, '/']
+}
+servers.each do |name, (command, path)|
+  port = free_port
+  pid = Process.spawn(ENV.to_h.merge(examples_env), *command.call(port), chdir: ROOT, out: File::NULL, err: File::NULL)
+  begin
+    unless wait_for(port)
+      check.call("#{name} starts", false, 'server did not come up (did you run bundle install --gemfile examples/Gemfile?)')
+      next
+    end
+    deliveries.each do |label, (body, timestamp, expected)|
+      signature = StampMitra::Webhook.sign(payload: payload, timestamp: timestamp, secret: SECRET)
+      headers = { 'X-Webhook-Signature' => signature, 'X-Webhook-Timestamp' => timestamp.to_s, 'X-Webhook-Event-Id' => 'evt_example' }
+      response = post(port, path, body, headers)
+      check.call("#{name} #{label} delivery -> #{expected}", response.code.to_i == expected, "got #{response.code} #{response.body}")
+    end
+    response = post(port, path, payload, {})
+    check.call("#{name} missing headers -> 400", response.code.to_i == 400, "got #{response.code}")
+  ensure
+    Process.kill('TERM', pid)
+    Process.wait(pid)
+  end
+end
+
+if failures.empty?
+  puts 'All examples ran successfully.'
+else
+  warn "FAILED: #{failures.join(', ')}"
+  exit 1
+end

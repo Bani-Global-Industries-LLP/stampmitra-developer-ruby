@@ -1,0 +1,41 @@
+version: 2
+updates:
+  # Gem development tooling (the gem itself has no runtime dependencies).
+  - package-ecosystem: bundler
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      dev-tooling:
+        patterns: ['*']
+        update-types: [minor, patch]
+    ignore:
+      # Major bumps of dev tooling (new RuboCop majors add cops that break the build) are done by hand.
+      - dependency-name: 'rubocop*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'rake'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'minitest'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'yard'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'bundler-audit'
+        update-types: ['version-update:semver-major']
+  # Framework examples (Sinatra, Rack).
+  - package-ecosystem: bundler
+    directory: /examples
+    schedule:
+      interval: weekly
+    groups:
+      examples:
+        patterns: ['*']
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+        update-types: [minor, patch]

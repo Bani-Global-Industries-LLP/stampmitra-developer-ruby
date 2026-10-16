@@ -1,0 +1,42 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Compiles and RUNS every code block in README.md against the spec repository's mock server (see
+# test/support/mock_server.rb for how it is found or started). Ruby blocks execute with `client` and `request` provided; every
+# StampMitra::Client created by a snippet is rerouted to the mock, so nothing can reach the real API.
+#   ruby scripts/check-readme-snippets [path/to/other.md]
+$LOAD_PATH.unshift File.expand_path('../lib', __dir__)
+require_relative '../test/support/mock_server'
+require_relative '../test/support/readme_snippets'
+
+path = ARGV.fetch(0, File.expand_path('../README.md', __dir__))
+markdown = File.read(path, encoding: 'UTF-8')
+
+begin
+  base = MockServer.url
+rescue MockServer::Unavailable => e
+  warn "mock server unavailable (#{e.message}); running against an empty in-memory API instead"
+  adapter = ReadmeSnippets::EmptyAdapter.new
+else
+  adapter = ReadmeSnippets::RewritingAdapter.new(base)
+end
+
+factory = ReadmeSnippets.binding_factory(adapter)
+results, failures = begin
+  ReadmeSnippets.check(markdown, binding_factory: factory)
+rescue ReadmeSnippets::Error => e
+  warn "FAIL #{e.message}"
+  exit 1
+end
+
+results.each do |(block, kind, error)|
+  puts "#{error ? 'FAIL' : 'ok  '} README.md:#{block.line} [#{block.info.empty? ? '(none)' : block.info}] #{kind}#{" - #{error}" if error}"
+end
+
+counts = results.group_by { |(_, kind, _)| kind }.transform_values(&:size)
+puts "#{results.size} blocks: #{counts.map { |k, v| "#{v} #{k}" }.join(', ')}"
+if results.none? { |(_, kind, _)| kind == :run_ruby }
+  warn 'FAIL no executable Ruby blocks found: the fence parser may be out of sync with the README'
+  exit 1
+end
+exit(failures.empty? ? 0 : 1)

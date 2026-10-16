@@ -1,0 +1,8 @@
+--markup markdown
+--no-private
+--hide-api private
+--readme README.md
+--title "StampMitra Ruby SDK"
+lib/**/*.rb
+-
+CHANGELOG.md

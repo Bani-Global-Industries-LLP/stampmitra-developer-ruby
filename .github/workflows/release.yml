@@ -1,0 +1,62 @@
+name: Release
+
+# Pushing a vX.Y.Z tag always builds and tests. It publishes to RubyGems ONLY when the repository variable RUBYGEMS_PUBLISH is
+# set to 'true' (Settings > Secrets and variables > Actions > Variables) AND a trusted publisher is configured on rubygems.org.
+# See RELEASING.md. No RubyGems API key is stored anywhere: publishing uses OIDC trusted publishing.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_WITHOUT: lint:docs:audit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - name: Install gems
+        run: bundle install --jobs 4 --retry 3
+      - name: Tag matches StampMitra::VERSION
+        run: |
+          version="$(ruby -Ilib -e 'require "stampmitra/version"; print StampMitra::VERSION')"
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match StampMitra::VERSION v${version}" >&2
+            exit 1
+          fi
+      - name: Unit tests
+        run: bundle exec rake test
+      - name: Every spec operation has an SDK method
+        run: ruby scripts/check-spec-coverage
+      - name: Build the gem
+        run: gem build stampmitra.gemspec
+
+  publish:
+    needs: verify
+    if: ${{ vars.RUBYGEMS_PUBLISH == 'true' }}
+    runs-on: ubuntu-latest
+    environment: rubygems
+    permissions:
+      id-token: write # OIDC token exchanged for a short-lived RubyGems API key (trusted publishing)
+      contents: write # lets rake release see/push the tag and create the GitHub release
+    env:
+      BUNDLE_WITHOUT: lint:docs:audit
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - name: Install gems
+        run: bundle install --jobs 4 --retry 3
+      - uses: rubygems/release-gem@v1
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" --generate-notes --title "${GITHUB_REF_NAME}" --verify-tag

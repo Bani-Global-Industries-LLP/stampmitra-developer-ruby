@@ -1,0 +1,22 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Fails (exit 1) when an operation in spec/openapi.json has no SDK method, or the SDK calls a path the spec lacks.
+#   ruby scripts/check-spec-coverage
+require_relative '../test/support/spec_coverage'
+
+root = File.expand_path('..', __dir__)
+missing = SpecCoverage.missing(root)
+extra = SpecCoverage.extra(root)
+spec_count = SpecCoverage.spec_operations(root).size
+
+unless missing.empty?
+  warn "Spec operations without an SDK method:\n  #{missing.join("\n  ")}"
+  exit 1
+end
+unless extra.empty?
+  warn "SDK calls operations that are not in spec/openapi.json:\n  #{extra.join("\n  ")}"
+  exit 1
+end
+
+puts "OK: all #{spec_count} spec operations are covered by the SDK."

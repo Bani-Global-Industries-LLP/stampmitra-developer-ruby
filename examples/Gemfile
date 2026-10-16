@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+source 'https://rubygems.org'
+
+# Only the framework examples need these; the SDK itself has no runtime dependencies.
+gem 'rack', '~> 3.1'
+gem 'rackup', '~> 2.2'
+gem 'sinatra', '~> 4.1'
+gem 'stampmitra', path: '..'
+gem 'webrick', '~> 1.9'

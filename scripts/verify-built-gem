@@ -1,0 +1,99 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Builds the gem, installs the BUILT .gem into a fresh GEM_HOME outside the repository, checks its metadata and file list, and runs
+# a consumer script (verify PAN, create order, paginate logs, verify a webhook) from a clean directory against the spec repository's
+# mock server. Proves what users get from `gem install stampmitra`, not what the working tree contains.
+#
+#   ruby scripts/verify-built-gem
+require 'fileutils'
+require 'json'
+require 'open3'
+require 'tmpdir'
+require_relative '../test/support/mock_server'
+
+ROOT = File.expand_path('..', __dir__)
+failures = []
+check = lambda do |name, ok, detail = nil|
+  puts "#{ok ? 'ok  ' : 'FAIL'} #{name}#{" - #{detail}" if detail}"
+  failures << name unless ok
+end
+
+work = Dir.mktmpdir('stampmitra-built-gem')
+begin
+  build_dir = File.join(work, 'build')
+  gem_home = File.join(work, 'gem_home')
+  consumer_dir = File.join(work, 'consumer')
+  [build_dir, gem_home, consumer_dir].each { |dir| FileUtils.mkdir_p(dir) }
+
+  gemspec = File.join(ROOT, 'stampmitra.gemspec')
+  out, status = Open3.capture2e('gem', 'build', gemspec, '--output', File.join(build_dir, 'stampmitra.gem'), chdir: ROOT)
+  check.call('gem build (no warnings)', status.success? && !out.match?(/WARNING/i), out.lines.grep(/WARNING|ERROR/).join.strip)
+  gem_file = File.join(build_dir, 'stampmitra.gem')
+
+  # Metadata and contents of the built artifact
+  spec_yaml, = Open3.capture2('gem', 'specification', gem_file, '--ruby')
+  spec = eval(spec_yaml, TOPLEVEL_BINDING.dup, 'gemspec') # rubocop:disable Security/Eval
+  meta = spec.metadata
+  %w[homepage_uri source_code_uri changelog_uri bug_tracker_uri documentation_uri].each do |key|
+    check.call("metadata #{key}", meta[key].to_s.start_with?('https://'))
+  end
+  check.call('metadata rubygems_mfa_required', meta['rubygems_mfa_required'] == 'true')
+  check.call('license MIT', spec.licenses == ['MIT'])
+  check.call('required_ruby_version >= 3.0', spec.required_ruby_version.to_s == '>= 3.0')
+  check.call('no runtime dependencies', spec.runtime_dependencies.empty?, spec.runtime_dependencies.join(', '))
+  check.call('version matches lib/stampmitra/version.rb', spec.version.to_s == File.read(File.join(ROOT, 'lib/stampmitra/version.rb'))[/'([^']+)'/, 1])
+  files = spec.files
+  check.call('lib/stampmitra.rb is packaged', files.include?('lib/stampmitra.rb'))
+  leaked = files.grep(%r{\A(test|spec|scripts|examples|\.github|fixtures)/|Gemfile|Rakefile|\.rubocop|\.yardopts})
+  check.call('tests, spec, fixtures, scripts, CI files are NOT packaged', leaked.empty?, leaked.first(5).join(', '))
+  check.call('every packaged file is lib/, LICENSE or a top-level doc', files.all? { |f| f.start_with?('lib/') || %w[LICENSE README.md CHANGELOG.md SECURITY.md].include?(f) })
+
+  # Install into a clean GEM_HOME and run a consumer from an unrelated directory
+  env = { 'GEM_HOME' => gem_home, 'GEM_PATH' => gem_home, 'BUNDLE_GEMFILE' => nil, 'RUBYOPT' => nil, 'RUBYLIB' => nil }
+  out, status = Open3.capture2e(env, 'gem', 'install', '--local', '--no-document', '--ignore-dependencies', gem_file)
+  check.call('gem install into a fresh GEM_HOME', status.success?, status.success? ? nil : out)
+
+  File.write(File.join(consumer_dir, 'consumer.rb'), <<~'RUBY')
+    require 'stampmitra'
+    require 'securerandom'
+
+    loaded = $LOADED_FEATURES.grep(%r{/stampmitra\.rb\z}).first
+    abort "loaded from the wrong place: #{loaded}" unless loaded.include?(ENV.fetch('EXPECTED_GEM_HOME'))
+    puts "using #{loaded}"
+
+    client = StampMitra::Client.new(api_key: 'sk_test_consumerKey0001', base_url: ENV.fetch('STAMPMITRA_BASE_URL'))
+    pan = client.verify.pan(pan: 'ABCDE1234F')
+    abort 'pan failed' unless pan.valid? && pan.reference_id.start_with?('SMV-')
+    order = client.orders.create(external_order_id: "o-#{SecureRandom.hex(4)}", external_customer_id: 'c1', service_code: 'estamp.instrument.rent_agreement')
+    abort 'order failed' unless order.external_order_id
+    logs = client.logs.each(limit: 10).to_a
+    abort 'logs failed' if logs.empty?
+    payload = '{"coreOrderId":"c1","coreEventType":"ORDER_CREATED","occurredAt":"2026-10-16T00:00:00Z"}'
+    ts = Time.now.to_i
+    sig = StampMitra::Webhook.sign(payload: payload, timestamp: ts, secret: 'whsec_consumer')
+    event = StampMitra::Webhook.construct_event(payload: payload, timestamp: ts, signature: sig, secret: 'whsec_consumer')
+    abort 'webhook failed' unless event.type == 'order.created'
+    begin
+      client.verify.pan(pan: 'nope')
+      abort 'validation should have failed'
+    rescue StampMitra::ValidationError => e
+      abort 'wrong field' unless e.field == 'pan'
+    end
+    puts "consumer ok: pan=#{pan.valid?} order=#{order.external_order_id} logs=#{logs.size} event=#{event.type}"
+  RUBY
+
+  consumer_env = env.merge('STAMPMITRA_BASE_URL' => MockServer.url, 'EXPECTED_GEM_HOME' => gem_home)
+  out, status = Open3.capture2e(consumer_env, RbConfig.ruby, 'consumer.rb', chdir: consumer_dir)
+  check.call('consumer script against the mock (installed gem, clean directory)', status.success? && out.include?('consumer ok'), out.lines.last(3).join.strip)
+  puts out.lines.first(2).join
+ensure
+  FileUtils.remove_entry(work)
+end
+
+if failures.empty?
+  puts 'Built gem verified.'
+else
+  warn "FAILED: #{failures.join(', ')}"
+  exit 1
+end

@@ -1,0 +1,14 @@
+# Library: no lockfile (see Gemfile)
+Gemfile.lock
+/.bundle/
+/vendor/bundle/
+/pkg/
+*.gem
+/doc/
+/.yardoc/
+/coverage/
+/tmp/
+.env
+.env.*
+!.env.example
+*.log
