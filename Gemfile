@@ -17,7 +17,7 @@ group :test do
 end
 
 group :lint do
-  gem 'rubocop', '1.92.0'
+  gem 'rubocop', '1.92.1'
   gem 'rubocop-minitest', '0.41.0'
   gem 'rubocop-rake', '0.7.1'
 end
