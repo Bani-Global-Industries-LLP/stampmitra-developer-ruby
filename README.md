@@ -11,7 +11,7 @@ Official Ruby client for the [StampMitra Developer API](https://developer.stampm
 Indian identity verification (PAN, GSTIN, vehicle RC, Voter ID, driving licence, passport, CIN, Udyam, bank account)
 and e-Stamp Paper. OpenAPI spec: <https://developer.stampmitra.in/openapi.json>.
 
-> **Status: pre-1.0 (0.1.0).** The API surface may change in minor releases. Pin your version.
+> **Status: pre-1.0 (0.2.0).** The API surface may change in minor releases. Pin your version.
 
 SDK guide: <https://developer.stampmitra.in/sdks/ruby> | API docs: <https://developer.stampmitra.in/docs>
 
@@ -19,7 +19,7 @@ SDK guide: <https://developer.stampmitra.in/sdks/ruby> | API docs: <https://deve
 
 ```ruby compile-only
 # Gemfile
-gem 'stampmitra', '~> 0.1.0'
+gem 'stampmitra', '~> 0.2.0'
 ```
 
 ```bash
@@ -69,7 +69,11 @@ client.orders.create(
 |----------|---------|
 | `client.verify` | `pan`, `gstin`, `rc`, `voter_id`, `driving_license`, `passport`, `cin`, `udyam`, `pan_to_gstin`, `pan_to_udyam`, `bank_account` |
 | `client.services` | `list`, `get(service_code)` |
-| `client.estamp` | `get_schema(service_code)`, `list_states`, `list_instruments(state_code)`, `list_articles(instrument_code)`, `calculate_duty(...)`, `add_parties(order_id, ...)` |
+| `client.estamp` | `get_schema(service_code)`, `list_states`, `list_instruments(state_code)`, `list_articles(instrument_code)`, `calculate_duty(...)`, `add_parties(order_id, ...)`, `get_states_availability`, `get_state(state_code)`, `get_state_requirements(state_code, ...)`, `list_districts(state_code)`, `list_sros(state_code, district_code)` |
+| `client.estamp.orders` | `validate(stamps:, ...)`, `create(stamps:, ...)`, `list(...)`, `each(...)`, `each_page(...)`, `get(id)`, `cancel(id)`, `export(id)`, `list_stamps(id)`, `upload_document(order_id, file:, ...)` |
+| `client.estamp.stamps` | `get(stamp_id)`, `cancel(stamp_id)`, `replace(stamp_id)`, `set_pan_card(stamp_id, pan_card_image:)`, `get_certificate(stamp_id)` |
+| `client.wallets` | `get` (both wallets); `stamp_duty` and `service_fee`, each with `get_balance`, `topup(base_amount:)`, `list_transactions`, `each_transaction`, `list_invoices`, `each_invoice`, `get_invoice(id)` |
+| `client.account` | `balance`, `usage` |
 | `client.orders` | `create(...)`, `get(id)`, `get_status(id)`, `get_payment(id)`, `list_documents(id)`, `get_document_download(id, document_id)` |
 | `client.payments.intents` | `create(...)`, `get(id)` |
 | `client.usage` | `summary` |
@@ -116,6 +120,66 @@ client.webhooks.events.list(limit: 20)
 client.webhooks.events.replay('evt_1')
 ```
 
+## e-Stamp orders
+
+Validate, create, upload the payer's PAN card, list the stamps and read their certificates:
+
+```ruby
+require 'stampmitra'
+require 'stringio'
+
+client = StampMitra::Client.new(api_key: ENV['STAMPMITRA_API_KEY'])
+stamp = { state: 'MH', article_code: 'ART1', denomination: 1000, purpose: 'Rental Agreement',
+          first_party: { name: 'Jane Doe', address: '12 MG Road, Pune' }, second_party: 'John Smith' }
+
+check = client.estamp.orders.validate(stamps: [stamp], reference: 'order-2026-0917') # dry run: nothing created, not billed
+puts "valid=#{check.valid} findings=#{Array(check.errors).size}"
+
+# Creating spends money and REQUIRES an Idempotency-Key: derive yours from something stable you own (the gem generates one if omitted)
+order = client.estamp.orders.create(stamps: [stamp], reference: 'order-2026-0917', options: { idempotency_key: 'order-2026-0917-v1' })
+
+pan_card = StringIO.new("%PDF-1.4\n%%EOF\n") # in real code pass the path of the PAN card (PDF, JPEG or PNG, up to 10 MB)
+client.estamp.orders.upload_document(order.id, file: pan_card, filename: 'pan.pdf', type: 'pan_card')
+
+Array(client.estamp.orders.list_stamps(order.id).items).each do |item|
+  puts "#{item['id']}: #{client.estamp.stamps.get_certificate(item['id']).status}"
+end
+```
+
+* **One order is one state**, up to 5000 stamp lines; `quantity` (1 to 1000) repeats a line. Stamp lines are plain hashes (snake_case
+  or camelCase keys) or `StampMitra::EstampStampLine`; the whole body is checked before sending (`error.errors` lists every
+  finding, like the API's). `client.estamp.get_state_requirements('MH', article_code: 'ART1')` returns what a state wants plus a
+  generated `example_body`.
+* **Parties** are a bare name (`first_party: 'Jane Doe'`) or an object / `StampMitra::EstampParty` with `name`, `address`, `phone`,
+  `father_husband_name` and `gender` (`MALE`, `FEMALE`, `OTHER`). Use the object when the state asks for an address or a father's or
+  husband's name. `property_area` is `{ unit: 'Square Feet', value: 850 }`; the unit is one of `Square Feet`, `Square Yard`,
+  `Square Meters` or `Not Applicable`.
+* **The PAN card is advisory:** it never blocks an order. Send `pan_card_image` (an `https://` link) on a stamp line, link one later
+  with `client.estamp.stamps.set_pan_card(stamp_id, pan_card_image: 'https://...')` (HTTP 202; it is checked afterwards, poll
+  `stamps.get(stamp_id).pan_card.status`), or upload the file as above.
+* **Errors:** a 400 lists every finding in `error.errors`; a 402 names the short wallet in `error.wallet`; reuse of an idempotency key
+  with a different body is a 422 `ValidationError` (`IDEMPOTENCY_KEY_REUSED`).
+
+### Wallets
+
+Orders debit two prepaid wallets: the **Stamp Duty** wallet (the duty) and the **Service Fee** wallet (fees).
+
+```ruby
+wallets = client.wallets.get # both wallets in one read
+puts "duty #{wallets.available}, fees #{wallets.service_fee.available}"
+
+topup = client.wallets.stamp_duty.topup(base_amount: 1000)
+puts "payer pays #{topup.total_charged}: fee #{topup.processing_fee_amount} + GST #{topup.gst_amount}; wallet credited #{topup.credit_amount}"
+puts client.wallets.stamp_duty.list_invoices.items.inspect # the GST tax invoices for the fees
+```
+
+A Stamp Duty top-up adds a 6% processing fee plus 18% GST on that fee to what the payer pays; the wallet is credited the amount you
+add (`credit_amount`), and a GST tax invoice for the fee is available from `list_invoices` / `get_invoice` (`topup_id` is the invoice
+id, live keys only). **Read every figure from the response, never calculate it**: the rate can change. `base_amount`, `gst_amount`
+and `total_charged` are numbers on the Stamp Duty top-up; the other amounts are strings, and every amount of a Service Fee top-up
+is a string. Top-ups are never retried automatically. `client.account.balance` and `client.account.usage` read your API balance
+and usage.
+
 ### Typed responses
 
 Responses are immutable value objects built from the OpenAPI spec's named schemas (`StampMitra::Models::PanVerification`, ...).
@@ -147,16 +211,19 @@ Every typed result also carries its response: `order.response.status`.
 
 ## Errors
 
-Every error inherits from `StampMitra::Error` and exposes `status`, `code`, `message`, `request_id`, `field` and `body`:
+Every error inherits from `StampMitra::Error` and exposes `status`, `code`, `message`, `request_id`, `field`, `body`, `headers` and
+`retry_after`, plus the structured extras of the API's error envelope: `details` (the raw `error.details` hash, or `nil`),
+`errors` (the per-field findings of a rejected e-Stamp order, each with `field`, `code`, `message` and `index`) and `wallet`
+(`"STAMP_DUTY"` or `"SERVICE_FEE"` on a 402 from an order):
 
 | HTTP | Error class |
 |------|-------------|
-| 400 (and local validation) | `ValidationError` |
+| 400, 422 (and local validation) | `ValidationError` |
 | 401 | `AuthenticationError` |
 | 402 | `PaymentRequiredError` |
 | 403 | `PermissionDeniedError` (server message verbatim, e.g. IP allowlist) |
 | 404 | `NotFoundError` |
-| 409 | `ConflictError` |
+| 409 | `ConflictError` (`IDEMPOTENCY_IN_PROGRESS` carries `retry_after`) |
 | 429 | `RateLimitError` (`retry_after` seconds when the header is present) |
 | 5xx | `UpstreamError` |
 | network / timeout | `ConnectionError` / `TimeoutError` (a `ConnectionError`) |
@@ -168,7 +235,7 @@ Other statuses raise the base `StampMitra::Error`; non-JSON error bodies still m
 begin
   client.verify.gstin(gstin: '27ABCDE1234F1Z5')
 rescue StampMitra::RateLimitError => e
-  sleep(e.retry_after || 1) # the API sends no Retry-After today, so this is usually nil
+  sleep(e.retry_after || 1) # the API sends Retry-After on every 429; nil only when a proxy stripped it
 rescue StampMitra::PermissionDeniedError => e
   warn "not allowed: #{e.message}"
 rescue StampMitra::Error => e
@@ -179,15 +246,19 @@ end
 ## Retries and idempotency
 
 `max_retries` defaults to 2 (at most 3 attempts) with exponential backoff and full jitter (0.5s base, 8s cap). `Retry-After` is
-honoured when sent (seconds or HTTP date, capped at 60s). Retried: 429, 502, 503, 504, connection errors and timeouts.
-Never retried: other 4xx and 5xx statuses, and redirects (which are not followed).
+honoured when sent (seconds or HTTP date, capped at 60s). Retried: 429, 502, 503, 504, connection errors and timeouts, and
+409 `IDEMPOTENCY_IN_PROGRESS` (the same request with the same key, after `Retry-After`). Never retried: other 4xx and 5xx
+statuses (a 422 `IDEMPOTENCY_KEY_REUSED` or any other 409 will not change on a retry), and redirects (which are not followed).
 
 * **GET** is always retry-safe.
 * **POST** is retried only when it carries an `Idempotency-Key`. The gem generates a CSPRNG UUIDv4 key for every POST the API
-  accepts one on (verification, duty calculation, e-Stamp parties, orders, payment intents) and reuses the **same key on
-  every attempt**, so a retry replays the original result instead of creating or billing twice. Pass your own with
-  `options: { idempotency_key: '...' }`.
-* **Webhook replay** has no idempotency and is never retried unless you pass a key.
+  accepts one on (verification, duty calculation, e-Stamp parties, orders, payment intents, e-Stamp orders, PAN card uploads) and
+  reuses the **same key on every attempt**, so a retry replays the original result instead of creating or billing twice. Pass
+  your own with `options: { idempotency_key: '...' }`. `estamp.orders.create` **requires** a key: the gem generates one when
+  you omit it. A multipart upload is re-sent whole, with the same key.
+* **`estamp.orders.validate`** is a dry run (nothing created, not billed, no key), so it is retried even without one.
+* **Never retried, with or without a key:** order cancel, stamp cancel, stamp replace, the PAN card link, both wallet top-ups
+  and webhook replay. They take no `Idempotency-Key`; a 429 or 5xx is raised to you (with `retry_after`) and you decide.
 
 Set `max_retries: 0` (client or per request) to disable retries. Each request uses a fresh connection and Net::HTTP's own
 transparent retry is disabled, so a request is never silently replayed.
@@ -304,7 +375,7 @@ Per-call rates by plan, in rupees, excluding 18% GST:
 | IP allowlisting | No | No | Yes | Yes | Yes | Yes |
 | White-label and custom domain | No | No | No | Yes | No | Yes |
 
-Growth and Scale are also available yearly (₹9,990 and ₹49,990, two months free). There are separate Startup and NGO programmes. Plans, rates and limits can change, and [developer.stampmitra.in/pricing](https://developer.stampmitra.in/pricing) is the source of truth; see it for how an e-Stamp order is priced in total.
+Growth and Scale are also available yearly (₹9,990 and ₹49,990, two months free). There are separate Startup and NGO programmes. Plans, rates and limits can change, and [developer.stampmitra.in/pricing](https://developer.stampmitra.in/pricing) is the source of truth; see it for how an e-Stamp order is priced in total. API e-Stamp orders are charged per paper as a procurement charge plus an API charge (excluding GST); the pricing page has the current rates.
 
 ## Security
 

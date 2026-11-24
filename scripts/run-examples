@@ -11,6 +11,8 @@
 #
 # The mock server is located like in the conformance tests (see test/support/mock_server.rb).
 $LOAD_PATH.unshift File.expand_path('../lib', __dir__)
+require 'fileutils'
+require 'tmpdir'
 require 'open3'
 require 'net/http'
 require 'socket'
@@ -29,13 +31,18 @@ check = lambda do |name, ok, detail = nil|
 end
 
 base = MockServer.url
+pan_card_pdf = File.join(Dir.tmpdir, "stampmitra-example-pan-#{Process.pid}.pdf")
+File.binwrite(pan_card_pdf, "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n")
+at_exit { FileUtils.rm_f(pan_card_pdf) }
 env = { 'STAMPMITRA_API_KEY' => KEY, 'STAMPMITRA_BASE_URL' => base }
 
 # ---- plain scripts ------------------------------------------------------------------------------
 {
   'examples/verify_pan.rb' => [%w[ABCDE1234F], /valid name-match=.* reference=SMV-/],
   'examples/create_order.rb' => [[], /created \S+ at .*\nstatus: .*\ndocuments: .*HTTP 200, 1 attempt/],
-  'examples/list_logs.rb' => [[], /pan\.verify.*\npage of \d+, next cursor:/]
+  'examples/list_logs.rb' => [[], /pan\.verify.*\npage of \d+, next cursor:/],
+  'examples/estamp_order.rb' => [[pan_card_pdf], /valid, quote:.*\ncreated estord_\S+ \(.*\nuploaded .*RECEIVED\neststamp_\S+: certificate/],
+  'examples/wallets.rb' => [%w[--topup 1000], /stamp duty: .*\nservice fee: .*\naccount: .*\ncredit .*payer pays/]
 }.each do |script, (args, pattern)|
   out, status = Open3.capture2e(env, RbConfig.ruby, File.join(ROOT, script), *args)
   check.call(script, status.success? && out.match?(pattern), status.success? ? nil : out.lines.first(3).join)

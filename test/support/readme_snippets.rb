@@ -187,6 +187,10 @@ module ReadmeSnippets
       path = URI(url).path
       body =
         if method == :post && path == '/v1/orders' then { 'externalOrderId' => 'ord_1', 'createdAt' => '2026-10-16T09:00:00.000Z' }
+        elsif method == :post && path == '/v1/estamp/orders' then { 'id' => 'estord_1', 'status' => 'PENDING_REVIEW' }
+        elsif method == :post && path == '/v1/estamp/orders/validate' then { 'valid' => true, 'errors' => [], 'warnings' => [] }
+        elsif path == '/v1/estamp/orders/estord_1/stamps' then { 'items' => [{ 'id' => 'eststamp_1' }], 'count' => 1, 'nextCursor' => nil }
+        elsif path == '/v1/estamp/wallet' then { 'balance' => '10.00', 'available' => '9.00', 'serviceFee' => { 'balance' => '2.00', 'available' => '2.00' } }
         elsif path == '/v1/logs' then { 'items' => [], 'nextCursor' => nil }
         elsif path == '/v1/services' then []
         else {}
