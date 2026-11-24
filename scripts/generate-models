@@ -8,7 +8,7 @@
 require 'json'
 
 ROOT = File.expand_path('..', __dir__)
-SPEC = JSON.parse(File.read(File.join(ROOT, 'spec/openapi.json')))
+SPEC = JSON.parse(File.read(File.join(ROOT, 'spec/openapi.json'), encoding: 'UTF-8'))
 SCHEMAS = SPEC.dig('components', 'schemas')
 TARGET = File.join(ROOT, 'lib/stampmitra/models.rb')
 
@@ -38,7 +38,49 @@ CLASSES = {
   'PaymentIntent' => 'PaymentIntent',
   'UsageSummary' => 'UsageSummary',
   'LogEntry' => 'LogEntry',
-  'LogsPage' => 'LogsPage'
+  'LogsPage' => 'LogsPage',
+  'EstampOrderQuote' => 'EstampOrderQuote',
+  'EstampDocumentRequirement' => 'EstampDocumentRequirement',
+  'EstampValidationIssue' => 'EstampValidationIssue',
+  'EstampOrderCounts' => 'EstampOrderCounts',
+  'EstampValidateResult' => 'EstampValidateResult',
+  'EstampStateAvailability' => 'EstampStateAvailability',
+  'EstampStatesAvailability' => 'EstampStatesAvailability',
+  'EstampState' => 'EstampState',
+  'EstampRequirements' => 'EstampRequirements',
+  'EstampDistrict' => 'EstampDistrict',
+  'EstampSro' => 'EstampSro',
+  'EstampOrderStampRef' => 'EstampOrderStampRef',
+  'EstampOrderAdvisory' => 'EstampOrderAdvisory',
+  'EstampOrder' => 'EstampOrder',
+  'EstampOrderList' => 'EstampOrderList',
+  'EstampOrderExport' => 'EstampOrderExport',
+  'EstampDocument' => 'EstampDocument',
+  'EstampPanCardStatus' => 'EstampPanCardStatus',
+  'EstampStamp' => 'EstampStamp',
+  'EstampStampList' => 'EstampStampList',
+  'EstampPanCardResult' => 'EstampPanCardResult',
+  'EstampCertificate' => 'EstampCertificate',
+  'EstampWalletPart' => 'EstampWalletPart',
+  'EstampWallet' => 'EstampWallet',
+  'WalletBalance' => 'WalletBalance',
+  'WalletTransaction' => 'WalletTransaction',
+  'WalletTransactionsPage' => 'WalletTransactionsPage',
+  'WalletInvoice' => 'WalletInvoice',
+  'WalletInvoicesPage' => 'WalletInvoicesPage',
+  'StampDutyWalletInvoice' => 'StampDutyWalletInvoice',
+  'StampDutyWalletInvoicesPage' => 'StampDutyWalletInvoicesPage',
+  'StampDutyWalletTopup' => 'StampDutyWalletTopup',
+  'ServiceFeeWalletTopup' => 'ServiceFeeWalletTopup',
+  'AccountBalance' => 'AccountBalance',
+  'AccountUsage' => 'AccountUsage'
+}.freeze
+
+# Responses that are a bare JSON array: schema => [class, item class, reader, plural noun, description]
+LISTS = {
+  'ServiceList' => ['ServiceList', 'Service', 'services', 'services', 'Services your organization is entitled to'],
+  'EstampDistrictList' => ['EstampDistrictList', 'EstampDistrict', 'districts', 'districts', 'Districts of an e-Stamp state'],
+  'EstampSroList' => ['EstampSroList', 'EstampSro', 'sros', 'sub-registrar offices', 'Sub-registrar offices of a district']
 }.freeze
 
 def snake(key)
@@ -54,21 +96,39 @@ def one_line(text)
   text.to_s.gsub(/\s+/, ' ').strip
 end
 
-def ruby_type(prop, required)
+# Schema name referenced by a property: a direct $ref, an array item $ref, or a nullable oneOf [$ref, null].
+def ref_name(prop)
   ref = prop['$ref'] || prop.dig('items', '$ref')
+  if ref.nil? && Array(prop['oneOf']).size == 2 && Array(prop['oneOf']).any? { |o| o['type'] == 'null' }
+    ref = Array(prop['oneOf']).filter_map { |o| o['$ref'] }.first
+  end
+  ref&.split('/')&.last
+end
+
+def array?(prop)
+  Array(prop['type']).include?('array')
+end
+
+# Nested objects without a model of their own (older verification schemas) stay raw Hashes.
+def model_for(prop)
+  CLASSES[ref_name(prop)]
+end
+
+def ruby_type(prop, required)
+  klass = model_for(prop)
   base =
-    if ref
-      klass = CLASSES.fetch(ref.split('/').last)
-      prop['type'] == 'array' ? "Array<#{klass}>" : klass
+    if klass
+      array?(prop) ? "Array<#{klass}>" : klass
+    elsif ref_name(prop)
+      array?(prop) ? 'Array<Hash>' : 'Hash'
     else
-      types = Array(prop['type'])
-      names = types.reject { |t| t == 'null' }.map do |t|
+      names = Array(prop['type']).reject { |t| t == 'null' }.map do |t|
         { 'string' => 'String', 'integer' => 'Integer', 'number' => 'Float', 'boolean' => 'Boolean',
           'object' => 'Hash', 'array' => 'Array' }.fetch(t)
       end
       names.empty? ? 'Object' : names.join(', ')
     end
-  nullable = !required || Array(prop['type']).include?('null')
+  nullable = !required || Array(prop['type']).include?('null') || Array(prop['oneOf']).any? { |o| o['type'] == 'null' }
   nullable && base != 'Object' ? "#{base}, nil" : base
 end
 
@@ -83,63 +143,71 @@ CLASSES.each_with_index do |(schema_name, klass), index|
   out << "\n" unless index.zero?
   out << "    # #{one_line(schema['description'] || schema_name)}\n"
   out << "    class #{klass} < Model\n"
+  seen = []
   (schema['properties'] || {}).each_with_index do |(key, prop), i|
     name = snake(key)
+    name = "#{name}_legacy" if seen.include?(name) # e.g. GSTIN next to gstin: a second key that snake_cases to the same reader
+    seen << name
     out << "\n" unless i.zero?
     out << "      # @!attribute [r] #{name}\n"
     out << "      #   @return [#{ruby_type(prop, required.include?(key))}] #{one_line(prop['description'] || key)}\n"
-    ref = prop['$ref'] || prop.dig('items', '$ref')
+    klass = model_for(prop)
     args = [":#{name}"]
     args << "'#{key}'" unless camel(name) == key
-    args << "model: #{CLASSES.fetch(ref.split('/').last)}" if ref
-    args << 'list: true' if prop['type'] == 'array' && ref
+    args << "model: #{klass}" if klass
+    args << 'list: true' if array?(prop) && klass
     out << "      attribute #{args.join(', ')}\n"
   end
   out << "    end\n"
 end
-out << "\n"
-out << "    # Services your organization is entitled to (a bare JSON array on the wire). Enumerable over {Service}.\n"
-out << "    class ServiceList\n"
-out << "      include Enumerable\n\n"
-out << "      # @return [Array<Service>]\n"
-out << "      attr_reader :services\n"
-out << "      # @return [Response, nil] HTTP metadata\n"
-out << "      attr_reader :response\n\n"
-out << "      # @param data [Array<Hash>] decoded JSON array\n"
-out << "      # @param response [Response, nil]\n"
-out << "      def initialize(data = [], response: nil)\n"
-out << "        @services = Array(data).map { |item| item.is_a?(Hash) ? Service.new(item) : item }.freeze\n"
-out << "        @response = response\n"
-out << "      end\n\n"
-out << "      # @yieldparam service [Service]\n"
-out << "      # @return [Enumerator, Array<Service>]\n"
-out << "      def each(&block)\n"
-out << "        return services.each unless block\n\n"
-out << "        services.each(&block)\n"
-out << "      end\n\n"
-out << "      # @return [Integer] number of services\n"
-out << "      def size\n"
-out << "        services.size\n"
-out << "      end\n\n"
-out << "      # @param index [Integer]\n"
-out << "      # @return [Service, nil]\n"
-out << "      def [](index)\n"
-out << "        services[index]\n"
-out << "      end\n\n"
-out << "      # @return [Array<Hash>] deep copies of the raw service objects\n"
-out << "      def to_h\n"
-out << "        services.map(&:to_h)\n"
-out << "      end\n\n"
-out << "      # @return [ServiceList] a copy carrying +response+\n"
-out << "      def with_response(response)\n"
-out << "        self.class.new(to_h, response: response)\n"
-out << "      end\n"
-out << "    end\n"
+def emit_list(out, klass, item, reader, noun, description) # rubocop:disable Metrics/ParameterLists
+  out << "\n"
+  out << "    # #{description} (a bare JSON array on the wire). Enumerable over {#{item}}.\n"
+  out << "    class #{klass}\n"
+  out << "      include Enumerable\n\n"
+  out << "      # @return [Array<#{item}>]\n"
+  out << "      attr_reader :#{reader}\n"
+  out << "      # @return [Response, nil] HTTP metadata\n"
+  out << "      attr_reader :response\n\n"
+  out << "      # @param data [Array<Hash>] decoded JSON array\n"
+  out << "      # @param response [Response, nil]\n"
+  out << "      def initialize(data = [], response: nil)\n"
+  out << "        @#{reader} = Array(data).map { |entry| entry.is_a?(Hash) ? #{item}.new(entry) : entry }.freeze\n"
+  out << "        @response = response\n"
+  out << "      end\n\n"
+  out << "      # @yieldparam entry [#{item}]\n"
+  out << "      # @return [Enumerator, Array<#{item}>]\n"
+  out << "      def each(&block)\n"
+  out << "        return #{reader}.each unless block\n\n"
+  out << "        #{reader}.each(&block)\n"
+  out << "      end\n\n"
+  out << "      # @return [Integer] number of #{noun}\n"
+  out << "      def size\n"
+  out << "        #{reader}.size\n"
+  out << "      end\n\n"
+  out << "      # @param index [Integer]\n"
+  out << "      # @return [#{item}, nil]\n"
+  out << "      def [](index)\n"
+  out << "        #{reader}[index]\n"
+  out << "      end\n\n"
+  out << "      # @return [Array<Hash>] deep copies of the raw objects\n"
+  out << "      def to_h\n"
+  out << "        #{reader}.map(&:to_h)\n"
+  out << "      end\n\n"
+  out << "      # @return [#{klass}] a copy carrying +response+\n"
+  out << "      def with_response(response)\n"
+  out << "        self.class.new(to_h, response: response)\n"
+  out << "      end\n"
+  out << "    end\n"
+end
+
+LISTS.each_value { |entry| emit_list(out, *entry) }
+
 out << "  end\n"
 out << "end\n"
 
 if ARGV.include?('--check')
-  current = File.exist?(TARGET) ? File.read(TARGET) : ''
+  current = File.exist?(TARGET) ? File.read(TARGET, encoding: 'UTF-8') : ''
   if current == out
     puts 'OK: lib/stampmitra/models.rb is up to date with spec/openapi.json'
   else
@@ -147,6 +215,6 @@ if ARGV.include?('--check')
     exit 1
   end
 else
-  File.write(TARGET, out)
-  puts "wrote #{TARGET} (#{CLASSES.size} models + ServiceList)"
+  File.write(TARGET, out, encoding: 'UTF-8')
+  puts "wrote #{TARGET} (#{CLASSES.size} models + #{LISTS.size} list models)"
 end

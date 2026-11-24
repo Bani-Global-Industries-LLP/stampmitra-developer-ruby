@@ -106,9 +106,10 @@ class ModelsTest < Minitest::Test
     assert_raises(ArgumentError) { StampMitra::Models::PanVerification.new([1]) }
   end
 
-  def test_gstin_uses_the_uppercase_wire_key
-    model = StampMitra::Models::GstinVerification.new('referenceId' => 'r', 'GSTIN' => '27ABCDE1234F1Z5', 'valid' => true)
+  def test_gstin_reads_the_lowercase_key_and_keeps_the_uppercase_alias_as_gstin_legacy
+    model = StampMitra::Models::GstinVerification.new('referenceId' => 'r', 'gstin' => '27ABCDE1234F1Z5', 'GSTIN' => '27ABCDE1234F1Z5', 'valid' => true)
     assert_equal '27ABCDE1234F1Z5', model.gstin
+    assert_equal '27ABCDE1234F1Z5', model.gstin_legacy
     assert_predicate model, :valid?
   end
 
