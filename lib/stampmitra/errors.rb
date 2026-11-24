@@ -10,6 +10,14 @@ module StampMitra
   # Errors raised locally (client-side validation, network failures) have a
   # +nil+ status. The API key is never part of an error message.
   class Error < StandardError
+    # One finding of a rejected e-Stamp order body (+error.details.errors[]+ in the API envelope).
+    FieldIssue = Struct.new(:field, :code, :message, :index) do
+      # @return [Hash{Symbol => Object}] the non-nil members
+      def to_h
+        super.compact
+      end
+    end
+
     # @return [Integer, nil] HTTP status, or nil when no response was received
     attr_reader :status
     # @return [String, nil] machine readable error code, e.g. "VALIDATION_ERROR"
@@ -22,6 +30,10 @@ module StampMitra
     attr_reader :body
     # @return [Hash{String => String}] response headers (lower-case names); empty for local errors
     attr_reader :headers
+    # @return [Hash, nil] the +error.details+ object of the envelope, when the API sent one
+    attr_reader :details
+    # @return [Float, nil] seconds from the Retry-After header (429, 503, 409 IDEMPOTENCY_IN_PROGRESS); nil when absent
+    attr_reader :retry_after
 
     # @param message [String, nil] human readable message (defaults to "HTTP <status>")
     # @param status [Integer, nil]
@@ -30,7 +42,10 @@ module StampMitra
     # @param field [String, nil]
     # @param body [Hash, String, nil]
     # @param headers [Hash{String => String}, nil]
-    def initialize(message = nil, status: nil, code: nil, request_id: nil, field: nil, body: nil, headers: nil)
+    # @param details [Hash, nil] +error.details+ of the envelope
+    # @param retry_after [Numeric, nil] seconds from the Retry-After header
+    def initialize(message = nil, status: nil, code: nil, request_id: nil, field: nil, body: nil, headers: nil, details: nil,
+                   retry_after: nil)
       super(message || (status ? "HTTP #{status}" : self.class.name))
       @status = status
       @code = code
@@ -38,6 +53,27 @@ module StampMitra
       @field = field
       @body = body
       @headers = headers || {}
+      @details = details.is_a?(Hash) ? details : nil
+      @retry_after = retry_after&.to_f
+    end
+
+    # Per-field findings of a rejected e-Stamp order body (+error.details.errors[]+), each with +field+, +code+,
+    # +message+ and +index+ (the zero-based stamp line, when the finding is inside +stamps[i]+).
+    #
+    # @return [Array<FieldIssue>] empty when the API sent none
+    def errors
+      list = details && details['errors']
+      return [] unless list.is_a?(Array)
+
+      list.grep(Hash).map { |item| FieldIssue.new(item['field'], item['code'], item['message'], item['index']) }
+    end
+
+    # The wallet that is short on a 402 from an e-Stamp order (+error.details.wallet+).
+    #
+    # @return [String, nil] "STAMP_DUTY", "SERVICE_FEE", or nil when the API did not say
+    def wallet
+      value = details && details['wallet']
+      value.is_a?(String) ? value : nil
     end
 
     # @return [Hash{Symbol => Object}] the non-secret diagnostic fields, handy for structured logging
@@ -46,7 +82,7 @@ module StampMitra
     end
   end
 
-  # HTTP 400, or an input that failed client-side validation (no request was sent).
+  # HTTP 400 or 422 (e.g. +IDEMPOTENCY_KEY_REUSED+), or an input that failed client-side validation (no request was sent).
   class ValidationError < Error
     # Builds a local validation error for +field+.
     #
@@ -71,22 +107,12 @@ module StampMitra
   # HTTP 404.
   class NotFoundError < Error; end
 
-  # HTTP 409, e.g. an Idempotency-Key reused with a different body.
+  # HTTP 409, e.g. +IDEMPOTENCY_IN_PROGRESS+ (carries +retry_after+) or a state conflict.
   class ConflictError < Error; end
 
   # HTTP 429.
-  class RateLimitError < Error
-    # @return [Float, nil] seconds from the Retry-After header; nil when the API sent none
-    attr_reader :retry_after
-
-    # @param message [String, nil]
-    # @param retry_after [Numeric, nil]
-    # @param options [Hash] see {Error#initialize}
-    def initialize(message = nil, retry_after: nil, **options)
-      super(message, **options)
-      @retry_after = retry_after&.to_f
-    end
-  end
+  # {Error#retry_after} holds the Retry-After seconds when the API sent the header.
+  class RateLimitError < Error; end
 
   # HTTP 5xx from the API or its upstreams.
   class UpstreamError < Error; end

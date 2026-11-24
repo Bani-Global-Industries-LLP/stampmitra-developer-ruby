@@ -68,39 +68,99 @@ module StampMitra
       attribute :message
     end
 
-    # Result of a GSTIN verification.
+    # Result of a GSTIN verification: the full registration record. Every field except referenceId, verificationId, gstin, GSTIN and valid is optional and is omitted when the registry does not provide it.
     class GstinVerification < Model
       # @!attribute [r] reference_id
       #   @return [String] StampMitra's own transaction id for this call (SMV-YYYYMMDD-XXXXXXX). Always present, including on a negative result. Not an idempotency key.
       attribute :reference_id
 
+      # @!attribute [r] verification_id
+      #   @return [String] StampMitra's own id for this verification (VRF- followed by 12 base32 characters). Generated for every call, unique to it. Always present. Quote it in support requests.
+      attribute :verification_id
+
       # @!attribute [r] gstin
-      #   @return [String] The GSTIN that was verified.
-      attribute :gstin, 'GSTIN'
+      #   @return [String] The GSTIN that was verified. Always present; on an unknown GSTIN it is the number you sent.
+      attribute :gstin
+
+      # @!attribute [r] gstin_legacy
+      #   @return [String] Same value as gstin. Kept so existing integrations keep working.
+      attribute :gstin_legacy, 'GSTIN'
 
       # @!attribute [r] valid
-      #   @return [Boolean] Whether the GSTIN exists and is valid.
+      #   @return [Boolean] Whether the GSTIN exists and is registered. Always present.
       attribute :valid
 
+      # @!attribute [r] legal_name_of_business
+      #   @return [String, nil] Legal name of the business registered against this GSTIN.
+      attribute :legal_name_of_business
+
+      # @!attribute [r] trade_name_of_business
+      #   @return [String, nil] Trade name of the business, when it has one.
+      attribute :trade_name_of_business
+
+      # @!attribute [r] center_jurisdiction
+      #   @return [String, nil] Central tax jurisdiction (range) of the registration.
+      attribute :center_jurisdiction
+
+      # @!attribute [r] state_jurisdiction
+      #   @return [String, nil] State tax jurisdiction of the registration.
+      attribute :state_jurisdiction
+
+      # @!attribute [r] date_of_registration
+      #   @return [String, nil] Date of GST registration, ISO yyyy-mm-dd.
+      attribute :date_of_registration
+
+      # @!attribute [r] constitution_of_business
+      #   @return [String, nil] Constitution of the business (legal form), for example Public Limited Company.
+      attribute :constitution_of_business
+
+      # @!attribute [r] taxpayer_type
+      #   @return [String, nil] Taxpayer type, for example Regular or Composition.
+      attribute :taxpayer_type
+
+      # @!attribute [r] gstin_status
+      #   @return [String, nil] GST registration status, for example Active.
+      attribute :gstin_status
+
+      # @!attribute [r] last_update_date
+      #   @return [String, nil] Date the registration record was last updated, ISO yyyy-mm-dd.
+      attribute :last_update_date
+
+      # @!attribute [r] nature_of_business_activities
+      #   @return [Array, nil] Nature of business activities declared on the registration.
+      attribute :nature_of_business_activities
+
+      # @!attribute [r] principal_place_address
+      #   @return [String, nil] Principal place of business as one address string.
+      attribute :principal_place_address
+
+      # @!attribute [r] principal_place_split_address
+      #   @return [Hash, nil] Principal place of business split into parts.
+      attribute :principal_place_split_address
+
+      # @!attribute [r] additional_addresses
+      #   @return [Array<Hash>, nil] Additional places of business on the registration.
+      attribute :additional_addresses
+
+      # @!attribute [r] message
+      #   @return [String, nil] Human-readable outcome, for example GSTIN Exists or GSTIN Doesn't Exist.
+      attribute :message
+
       # @!attribute [r] legal_name
-      #   @return [String, nil] Legal name of the registrant.
+      #   @return [String, nil] Same value as legalNameOfBusiness. Kept so existing integrations keep working.
       attribute :legal_name
 
       # @!attribute [r] trade_name
-      #   @return [String, nil] Trade name of the registrant.
+      #   @return [String, nil] Same value as tradeNameOfBusiness. Kept so existing integrations keep working.
       attribute :trade_name
 
       # @!attribute [r] registration_status
-      #   @return [String, nil] Registration status, e.g. Active.
+      #   @return [String, nil] Same value as gstinStatus. Kept so existing integrations keep working.
       attribute :registration_status
 
       # @!attribute [r] principal_place_of_business
-      #   @return [String, nil] Principal place of business.
+      #   @return [String, nil] Same value as principalPlaceAddress. Kept so existing integrations keep working.
       attribute :principal_place_of_business
-
-      # @!attribute [r] message
-      #   @return [String, nil] Provider message.
-      attribute :message
     end
 
     # Result of a vehicle RC verification.
@@ -170,97 +230,209 @@ module StampMitra
       attribute :is_commercial
     end
 
-    # Result of a Voter ID verification.
+    # Result of a Voter ID verification: the full voter record. Every field except referenceId, verificationId and valid is optional.
     class VoterIdVerification < Model
       # @!attribute [r] reference_id
       #   @return [String] StampMitra's own transaction id for this call (SMV-YYYYMMDD-XXXXXXX). Always present, including on a negative result. Not an idempotency key.
       attribute :reference_id
 
+      # @!attribute [r] verification_id
+      #   @return [String] StampMitra's own id for this verification (VRF- followed by 12 base32 characters). Generated for every call, unique to it. Always present. Quote it in support requests.
+      attribute :verification_id
+
       # @!attribute [r] valid
-      #   @return [Boolean] Whether the Voter ID is valid.
+      #   @return [Boolean] Whether the voter ID is valid. Always present.
       attribute :valid
 
+      # @!attribute [r] status
+      #   @return [String, nil] Outcome of the lookup: VALID or INVALID.
+      attribute :status
+
+      # @!attribute [r] epic_number
+      #   @return [String, nil] The voter ID (EPIC) number that was looked up.
+      attribute :epic_number
+
       # @!attribute [r] name
-      #   @return [String, nil] Registered name.
+      #   @return [String, nil] The voter's registered name, when the voter ID is valid.
       attribute :name
 
+      # @!attribute [r] name_in_regional_lang
+      #   @return [String, nil] The voter's name in the regional language of the roll.
+      attribute :name_in_regional_lang
+
+      # @!attribute [r] age
+      #   @return [String, nil] The voter's age in years, as a string, when available.
+      attribute :age
+
+      # @!attribute [r] relation_type
+      #   @return [String, nil] Type of the relation named on the roll (for example FTHR for father, HUSB for husband).
+      attribute :relation_type
+
+      # @!attribute [r] relation_name
+      #   @return [String, nil] Name of the relative named on the roll.
+      attribute :relation_name
+
+      # @!attribute [r] relation_name_in_regional_lang
+      #   @return [String, nil] The relative's name in the regional language of the roll.
+      attribute :relation_name_in_regional_lang
+
+      # @!attribute [r] father_name
+      #   @return [String, nil] The voter's father's name, when the roll gives it.
+      attribute :father_name
+
       # @!attribute [r] dob
-      #   @return [String, nil] Date of birth.
+      #   @return [String, nil] The voter's date of birth, ISO yyyy-mm-dd, when the roll has one.
       attribute :dob
 
       # @!attribute [r] gender
-      #   @return [String, nil] Gender.
+      #   @return [String, nil] The voter's gender, when the voter ID is valid.
       attribute :gender
 
-      # @!attribute [r] age
-      #   @return [Integer, nil] Age in years.
-      attribute :age
-
       # @!attribute [r] address
-      #   @return [String, nil] Registered address.
+      #   @return [String, nil] The registered address as one line, when the voter ID is valid.
       attribute :address
 
+      # @!attribute [r] photo_url
+      #   @return [String, nil] A link to the voter photo, when the roll has one. A link only, never image data; it can expire, so fetch it promptly.
+      attribute :photo_url
+
+      # @!attribute [r] split_address
+      #   @return [Hash, nil] The registered address split into parts.
+      attribute :split_address
+
       # @!attribute [r] state
-      #   @return [String, nil] State.
+      #   @return [String, nil] The registered state, when the voter ID is valid.
       attribute :state
+
+      # @!attribute [r] assembly_constituency_number
+      #   @return [String, nil] Assembly constituency number.
+      attribute :assembly_constituency_number
+
+      # @!attribute [r] assembly_constituency
+      #   @return [String, nil] Assembly constituency name.
+      attribute :assembly_constituency
+
+      # @!attribute [r] parliamentary_constituency_number
+      #   @return [String, nil] Parliamentary constituency number.
+      attribute :parliamentary_constituency_number
+
+      # @!attribute [r] parliamentary_constituency
+      #   @return [String, nil] Parliamentary constituency name.
+      attribute :parliamentary_constituency
+
+      # @!attribute [r] part_number
+      #   @return [String, nil] Part number of the electoral roll.
+      attribute :part_number
+
+      # @!attribute [r] part_name
+      #   @return [String, nil] Part name of the electoral roll.
+      attribute :part_name
+
+      # @!attribute [r] serial_number
+      #   @return [String, nil] Serial number of the voter within the part.
+      attribute :serial_number
+
+      # @!attribute [r] polling_station
+      #   @return [String, nil] Name of the polling station.
+      attribute :polling_station
     end
 
-    # Result of a driving licence verification.
+    # Result of a driving licence verification: the full licence record. Every field except referenceId, verificationId and valid is optional.
     class DrivingLicenseVerification < Model
       # @!attribute [r] reference_id
       #   @return [String] StampMitra's own transaction id for this call (SMV-YYYYMMDD-XXXXXXX). Always present, including on a negative result. Not an idempotency key.
       attribute :reference_id
 
+      # @!attribute [r] verification_id
+      #   @return [String] StampMitra's own id for this verification (VRF- followed by 12 base32 characters). Generated for every call, unique to it. Always present. Quote it in support requests.
+      attribute :verification_id
+
       # @!attribute [r] valid
-      #   @return [Boolean] Whether the licence is valid.
+      #   @return [Boolean] Whether the driving licence is valid. Always present.
       attribute :valid
 
+      # @!attribute [r] dl_number
+      #   @return [String, nil] The driving licence number that was looked up.
+      attribute :dl_number
+
+      # @!attribute [r] dob
+      #   @return [String, nil] The licence holder's date of birth, ISO yyyy-mm-dd.
+      attribute :dob
+
+      # @!attribute [r] status
+      #   @return [String, nil] Outcome of the lookup: VALID or INVALID.
+      attribute :status
+
+      # @!attribute [r] dl_status
+      #   @return [String, nil] Same value as status. Kept so existing integrations keep working.
+      attribute :dl_status
+
       # @!attribute [r] name
-      #   @return [String, nil] Licence holder's name.
+      #   @return [String, nil] The licence holder's registered name. Same as detailsOfDrivingLicence.name. Kept for existing integrations.
       attribute :name
 
       # @!attribute [r] father_or_husband_name
-      #   @return [String, nil] Father's or husband's name.
+      #   @return [String, nil] Name of the holder's father or husband. Same as detailsOfDrivingLicence.fatherOrHusbandName. Kept for existing integrations.
       attribute :father_or_husband_name
 
-      # @!attribute [r] dob
-      #   @return [String, nil] Date of birth.
-      attribute :dob
-
       # @!attribute [r] address
-      #   @return [String, nil] Address.
+      #   @return [String, nil] The registered address as one string. Same as detailsOfDrivingLicence.address. Kept for existing integrations.
       attribute :address
 
       # @!attribute [r] valid_upto
-      #   @return [String, nil] Licence valid-until date.
+      #   @return [String, nil] End of validity of the non-transport classes, a date string exactly as supplied (dd/mm/yyyy in the example). Same as dlValidity.nonTransport.to. Kept for existing integrations.
       attribute :valid_upto
 
-      # @!attribute [r] dl_status
-      #   @return [String, nil] Licence status, e.g. ACTIVE.
-      attribute :dl_status
+      # @!attribute [r] badge_details
+      #   @return [Array<Hash>, nil] Transport badge details and the classes of vehicle covered. null when the record carries no badge block.
+      attribute :badge_details
+
+      # @!attribute [r] dl_validity
+      #   @return [Hash, nil] Validity periods of the licence by class: non-transport, transport, hazardous goods and hill area.
+      attribute :dl_validity
+
+      # @!attribute [r] details_of_driving_licence
+      #   @return [Hash, nil] Details held on the licence record: issue date, holder names, addresses, photograph link and class-of-vehicle details.
+      attribute :details_of_driving_licence
     end
 
-    # Result of a passport verification.
+    # Result of a passport verification: the application record. Every field except referenceId, verificationId and valid is optional.
     class PassportVerification < Model
       # @!attribute [r] reference_id
       #   @return [String] StampMitra's own transaction id for this call (SMV-YYYYMMDD-XXXXXXX). Always present, including on a negative result. Not an idempotency key.
       attribute :reference_id
 
+      # @!attribute [r] verification_id
+      #   @return [String] StampMitra's own id for this verification (VRF- followed by 12 base32 characters). Generated for every call, unique to it. Always present. Quote it in support requests.
+      attribute :verification_id
+
       # @!attribute [r] valid
-      #   @return [Boolean] Whether the passport application was found and matches.
+      #   @return [Boolean] Whether the passport application file number is valid. Always present.
       attribute :valid
 
+      # @!attribute [r] status
+      #   @return [String, nil] Outcome of the lookup: VALID or INVALID.
+      attribute :status
+
+      # @!attribute [r] file_number
+      #   @return [String, nil] The passport application file number that was looked up. This is the application file number, not the passport number.
+      attribute :file_number
+
       # @!attribute [r] name
-      #   @return [String, nil] Applicant's name.
+      #   @return [String, nil] The applicant's name as held on the application, when valid.
       attribute :name
 
       # @!attribute [r] dob
-      #   @return [String, nil] Date of birth.
+      #   @return [String, nil] The applicant's date of birth, ISO yyyy-mm-dd, when valid.
       attribute :dob
 
       # @!attribute [r] application_type
-      #   @return [String, nil] Application type, e.g. Fresh.
+      #   @return [String, nil] The type of passport application (for example NORMAL), when valid.
       attribute :application_type
+
+      # @!attribute [r] application_received_date
+      #   @return [String, nil] Date the application was received, ISO yyyy-mm-dd, when valid.
+      attribute :application_received_date
     end
 
     # A company director.
@@ -278,78 +450,158 @@ module StampMitra
       attribute :designation
     end
 
-    # Result of a company CIN verification.
+    # Result of a company CIN verification: the full company record. Every field except referenceId, verificationId, valid and cin is optional and is omitted when the registry does not provide it.
     class CinVerification < Model
       # @!attribute [r] reference_id
       #   @return [String] StampMitra's own transaction id for this call (SMV-YYYYMMDD-XXXXXXX). Always present, including on a negative result. Not an idempotency key.
       attribute :reference_id
 
+      # @!attribute [r] verification_id
+      #   @return [String] StampMitra's own id for this verification (VRF- followed by 12 base32 characters). Generated for every call, unique to it. Always present. Quote it in support requests.
+      attribute :verification_id
+
       # @!attribute [r] valid
-      #   @return [Boolean] Whether the CIN is valid.
+      #   @return [Boolean] Whether the CIN is valid. Always present. True exactly when status is VALID.
       attribute :valid
 
+      # @!attribute [r] status
+      #   @return [String, nil] Registry outcome of the lookup: VALID or INVALID.
+      attribute :status
+
+      # @!attribute [r] cin
+      #   @return [String] The CIN that was verified. Always present; on an invalid CIN it is the number you sent.
+      attribute :cin
+
       # @!attribute [r] company_name
-      #   @return [String, nil] Company name.
+      #   @return [String, nil] Registered company name, when the CIN is valid.
       attribute :company_name
 
+      # @!attribute [r] registration_number
+      #   @return [Integer, nil] Company registration number, a number (not a string), when available.
+      attribute :registration_number
+
       # @!attribute [r] incorporation_date
-      #   @return [String, nil] Incorporation date.
+      #   @return [String, nil] Date of incorporation, ISO yyyy-mm-dd.
       attribute :incorporation_date
 
       # @!attribute [r] cin_status
-      #   @return [String, nil] CIN status.
+      #   @return [String, nil] Company status as recorded by the MCA, for example ACTIVE.
       attribute :cin_status
 
+      # @!attribute [r] email
+      #   @return [String, nil] Registered email address of the company.
+      attribute :email
+
+      # @!attribute [r] incorporation_country
+      #   @return [String, nil] Country of incorporation, for example INDIA.
+      attribute :incorporation_country
+
+      # @!attribute [r] director_details
+      #   @return [Array<Hash>, nil] Directors / designated partners on record, with date of birth and address.
+      attribute :director_details
+
       # @!attribute [r] company_status
-      #   @return [String, nil] Company status.
+      #   @return [String, nil] Same value as cinStatus. Kept so existing integrations keep working.
       attribute :company_status
 
       # @!attribute [r] directors
-      #   @return [Array<CinDirector>, nil] Directors on record.
+      #   @return [Array<CinDirector>, nil] Directors with name, DIN and designation only. Kept so existing integrations keep working; directorDetails has the full entries.
       attribute :directors, model: CinDirector, list: true
-
-      # @!attribute [r] email
-      #   @return [String, nil] Company email address.
-      attribute :email
-
-      # @!attribute [r] registration_number
-      #   @return [String, nil] Registration number.
-      attribute :registration_number
-
-      # @!attribute [r] incorporation_country
-      #   @return [String, nil] Country of incorporation.
-      attribute :incorporation_country
     end
 
-    # Result of a Udyam verification.
+    # Result of a Udyam verification: the full registration record. Every field except referenceId, verificationId and found is optional.
     class UdyamVerification < Model
       # @!attribute [r] reference_id
       #   @return [String] StampMitra's own transaction id for this call (SMV-YYYYMMDD-XXXXXXX). Always present, including on a negative result. Not an idempotency key.
       attribute :reference_id
 
+      # @!attribute [r] verification_id
+      #   @return [String] StampMitra's own id for this verification (VRF- followed by 12 base32 characters). Generated for every call, unique to it. Always present. Quote it in support requests.
+      attribute :verification_id
+
       # @!attribute [r] found
-      #   @return [Boolean] Whether the Udyam registration was found.
+      #   @return [Boolean] Whether an active Udyam registration was found. Always present.
       attribute :found
 
+      # @!attribute [r] status
+      #   @return [String, nil] Outcome of the lookup: SUCCESS, UDYAM_NOT_FOUND or UDYAM_IS_CANCELLED.
+      attribute :status
+
       # @!attribute [r] udyam_status
-      #   @return [String, nil] Registration status.
+      #   @return [String, nil] Same value as status. Kept so existing integrations keep working.
       attribute :udyam_status
 
+      # @!attribute [r] udyam_number
+      #   @return [String, nil] The Udyam registration number that was looked up.
+      attribute :udyam_number
+
       # @!attribute [r] enterprise_name
-      #   @return [String, nil] Enterprise name.
+      #   @return [String, nil] Registered enterprise name.
       attribute :enterprise_name
 
-      # @!attribute [r] enterprise_type
-      #   @return [String, nil] Enterprise type.
-      attribute :enterprise_type
-
       # @!attribute [r] organization_type
-      #   @return [String, nil] Organization type, e.g. Micro.
+      #   @return [String, nil] Legal form of the organisation, for example Proprietary.
       attribute :organization_type
 
+      # @!attribute [r] major_activity
+      #   @return [String, nil] Major activity: Manufacturing, Services or Trading.
+      attribute :major_activity
+
+      # @!attribute [r] social_category
+      #   @return [String, nil] Social category of the owner, for example General.
+      attribute :social_category
+
+      # @!attribute [r] date_of_incorporation
+      #   @return [String, nil] Date of incorporation, ISO yyyy-mm-dd.
+      attribute :date_of_incorporation
+
+      # @!attribute [r] date_of_commencement
+      #   @return [String, nil] Date business commenced, ISO yyyy-mm-dd.
+      attribute :date_of_commencement
+
+      # @!attribute [r] date_of_udyam_registration
+      #   @return [String, nil] Date the Udyam registration was issued, ISO yyyy-mm-dd.
+      attribute :date_of_udyam_registration
+
+      # @!attribute [r] enterprise_type
+      #   @return [String, nil] Current MSME classification: Micro, Small or Medium.
+      attribute :enterprise_type
+
+      # @!attribute [r] classification_year
+      #   @return [String, nil] Financial year of the current classification, for example 2024-25.
+      attribute :classification_year
+
+      # @!attribute [r] classification_date
+      #   @return [String, nil] Date of the current classification, ISO yyyy-mm-dd.
+      attribute :classification_date
+
       # @!attribute [r] certificate_url
-      #   @return [String, nil] URL of the Udyam certificate.
+      #   @return [String, nil] URL of the Udyam registration certificate (PDF).
       attribute :certificate_url
+
+      # @!attribute [r] classification_history
+      #   @return [Array<Hash>, nil] Year-by-year classification history, most recent first.
+      attribute :classification_history
+
+      # @!attribute [r] split_address
+      #   @return [Hash, nil] Registered address of the enterprise, split into parts, with the registered contact details.
+      attribute :split_address
+
+      # @!attribute [r] unit_locations
+      #   @return [Array<Hash>, nil] Locations of the enterprise units.
+      attribute :unit_locations
+
+      # @!attribute [r] nic_codes
+      #   @return [Array<Hash>, nil] NIC activity codes the enterprise is registered under.
+      attribute :nic_codes
+
+      # @!attribute [r] dic
+      #   @return [String, nil] District Industries Centre.
+      attribute :dic
+
+      # @!attribute [r] msme_di
+      #   @return [String, nil] MSME Development Institute.
+      attribute :msme_di
     end
 
     # One GSTIN registered against a PAN.
@@ -382,22 +634,34 @@ module StampMitra
       attribute :gstins, model: PanToGstinEntry, list: true
     end
 
-    # Result of a PAN to Udyam lookup.
+    # Result of a PAN to Udyam lookup. Every field except referenceId, verificationId and found is optional; udyam and udyamNumber carry the same value.
     class PanToUdyam < Model
       # @!attribute [r] reference_id
       #   @return [String] StampMitra's own transaction id for this call (SMV-YYYYMMDD-XXXXXXX). Always present, including on a negative result. Not an idempotency key.
       attribute :reference_id
 
+      # @!attribute [r] verification_id
+      #   @return [String] StampMitra's own id for this verification (VRF- followed by 12 base32 characters). Generated for every call, unique to it. Always present. Quote it in support requests.
+      attribute :verification_id
+
       # @!attribute [r] found
-      #   @return [Boolean] Whether a Udyam registration was found for the PAN.
+      #   @return [Boolean] Whether an active Udyam registration was found for the PAN. Always present.
       attribute :found
 
       # @!attribute [r] status
-      #   @return [String, nil] Registration status.
+      #   @return [String, nil] Outcome of the lookup: SUCCESS, UDYAM_NOT_FOUND or UDYAM_IS_CANCELLED.
       attribute :status
 
+      # @!attribute [r] pan
+      #   @return [String, nil] The PAN the lookup was made for.
+      attribute :pan
+
+      # @!attribute [r] udyam
+      #   @return [String, nil] The Udyam registration number linked to the PAN, at most one. null when no registration is linked.
+      attribute :udyam
+
       # @!attribute [r] udyam_number
-      #   @return [String, nil] The Udyam registration number.
+      #   @return [String, nil] Same value as udyam. Kept so existing integrations keep working.
       attribute :udyam_number
     end
 
@@ -728,6 +992,999 @@ module StampMitra
       attribute :next_cursor
     end
 
+    # Priced totals in rupees. Never recalculate or override them. What the customer pays for the order is faceValueTotal + serviceFeeTotal + gstOnFee.
+    class EstampOrderQuote < Model
+      # @!attribute [r] face_value_total
+      #   @return [Float] Government duty (face value) for the whole order, in rupees. Paid from the Stamp Duty Wallet.
+      attribute :face_value_total
+
+      # @!attribute [r] service_fee_total
+      #   @return [Float] Service charges for the whole order before GST, in rupees.
+      attribute :service_fee_total
+
+      # @!attribute [r] gst_on_fee
+      #   @return [Float] GST on the service charges, in rupees.
+      attribute :gst_on_fee
+
+      # @!attribute [r] service_wallet_debit_total
+      #   @return [Float] What the Service Fee Wallet is debited when the order is created (the service charges net of GST), in rupees.
+      attribute :service_wallet_debit_total
+    end
+
+    # What a validate answer says about the payer's PAN card.
+    class EstampDocumentRequirement < Model
+      # @!attribute [r] type
+      #   @return [String] What is asked for.
+      attribute :type
+
+      # @!attribute [r] required
+      #   @return [Boolean] Always false: the payer's PAN card is advisory and an order is never held back for want of it.
+      attribute :required
+
+      # @!attribute [r] recommended
+      #   @return [Boolean] true when the state asks for a PAN card.
+      attribute :recommended
+
+      # @!attribute [r] upload_with
+      #   @return [String] The route that takes the file.
+      attribute :upload_with
+    end
+
+    # One finding in the errors or warnings list of a validate answer.
+    class EstampValidationIssue < Model
+      # @!attribute [r] index
+      #   @return [Integer] Zero-based index of the stamp line the finding is about.
+      attribute :index
+
+      # @!attribute [r] message
+      #   @return [String] Human-readable text.
+      attribute :message
+
+      # @!attribute [r] code
+      #   @return [String, nil] Stable per-row code, when known (STATE_INACTIVE, AMOUNT_NOT_MULTIPLE, INVALID_PAN_CARD_LINK, PAYER_NOT_A_PARTY, ...).
+      attribute :code
+
+      # @!attribute [r] field
+      #   @return [String, nil] Path of the offending input, when known, for example stamps[0].firstParty.name.
+      attribute :field
+    end
+
+    # Stamp counts by category. Quantities are included, so a line with quantity 2 counts 2.
+    class EstampOrderCounts < Model
+      # @!attribute [r] total
+      #   @return [Integer, nil] All stamps, quantities included.
+      attribute :total
+
+      # @!attribute [r] e_stamp
+      #   @return [Integer, nil] e_stamp stamps, quantities included.
+      attribute :e_stamp, 'e_stamp'
+
+      # @!attribute [r] traditional_stamp
+      #   @return [Integer, nil] traditional_stamp stamps, quantities included.
+      attribute :traditional_stamp, 'traditional_stamp'
+    end
+
+    # Result of validating an order. Nothing was saved and nothing was charged.
+    class EstampValidateResult < Model
+      # @!attribute [r] valid
+      #   @return [Boolean] false when a detail is missing (status NEEDS_INFORMATION).
+      attribute :valid
+
+      # @!attribute [r] reference
+      #   @return [String, nil] Your order reference, or null when you sent none.
+      attribute :reference
+
+      # @!attribute [r] state
+      #   @return [String, nil] State of the first stamp line.
+      attribute :state
+
+      # @!attribute [r] status
+      #   @return [String] READY_TO_PLACE (nothing wrong found), WARNINGS (passed with notes) or NEEDS_INFORMATION (a detail is missing). The answer is a success status in all three cases; a 400 is returned only for a body that cannot be accepted.
+      attribute :status
+
+      # @!attribute [r] is_test
+      #   @return [Boolean] true on a sandbox key.
+      attribute :is_test
+
+      # @!attribute [r] counts
+      #   @return [EstampOrderCounts] counts
+      attribute :counts, model: EstampOrderCounts
+
+      # @!attribute [r] errors
+      #   @return [Array<EstampValidationIssue>] Missing or wrong details. Non-empty only when valid is false.
+      attribute :errors, model: EstampValidationIssue, list: true
+
+      # @!attribute [r] warnings
+      #   @return [Array<EstampValidationIssue>] Pricing or compliance notes. Show them to the user before creating.
+      attribute :warnings, model: EstampValidationIssue, list: true
+
+      # @!attribute [r] quote
+      #   @return [EstampOrderQuote, nil] Priced totals for the order; null only when pricing was unavailable for this call.
+      attribute :quote, model: EstampOrderQuote
+
+      # @!attribute [r] documents_required
+      #   @return [Array<EstampDocumentRequirement>] Always one PAN_CARD_IMAGE entry: whether a PAN card is advisable for this state. Never blocking.
+      attribute :documents_required, model: EstampDocumentRequirement, list: true
+
+      # @!attribute [r] created_at
+      #   @return [String] When this validation was run.
+      attribute :created_at
+    end
+
+    # Live availability of one state.
+    class EstampStateAvailability < Model
+      # @!attribute [r] code
+      #   @return [String] State code.
+      attribute :code
+
+      # @!attribute [r] name
+      #   @return [String] State name.
+      attribute :name
+
+      # @!attribute [r] active
+      #   @return [Boolean] The live operational switch: whether the state accepts new stamp orders right now. A state can be switched off temporarily, for example during a government portal outage.
+      attribute :active
+
+      # @!attribute [r] e_stamp_available
+      #   @return [Boolean] Static serviceability: e-Stamps can be issued in this state.
+      attribute :e_stamp_available
+
+      # @!attribute [r] traditional_available
+      #   @return [Boolean] Static serviceability: traditional (paper) stamps are available in this state.
+      attribute :traditional_available
+    end
+
+    # Which states are accepting new stamp orders right now.
+    class EstampStatesAvailability < Model
+      # @!attribute [r] data
+      #   @return [Array<EstampStateAvailability>] States, or only the active ones with ?active=true.
+      attribute :data, model: EstampStateAvailability, list: true
+
+      # @!attribute [r] count
+      #   @return [Integer] Number of rows in data.
+      attribute :count
+
+      # @!attribute [r] active_count
+      #   @return [Integer] Number of active states (independent of the active filter).
+      attribute :active_count
+    end
+
+    # One state's detail: serviceability and the flags that decide which fields an order needs. Further catalogue fields may be added; ignore unknown ones.
+    class EstampState < Model
+      # @!attribute [r] code
+      #   @return [String] State code. Every other route takes it as stateCode.
+      attribute :code
+
+      # @!attribute [r] name
+      #   @return [String] State name.
+      attribute :name
+
+      # @!attribute [r] is_active
+      #   @return [Boolean, nil] Whether the state is currently active in the catalogue.
+      attribute :is_active
+
+      # @!attribute [r] e_stamp_available
+      #   @return [Boolean, nil] Whether e-Stamps can be issued here.
+      attribute :e_stamp_available
+
+      # @!attribute [r] traditional_available
+      #   @return [Boolean, nil] Whether physical stamp papers are available here.
+      attribute :traditional_available
+
+      # @!attribute [r] min_amount
+      #   @return [Object] State-level minimum duty amount, where one applies: a decimal string such as "100.00", a number in sandbox, or null.
+      attribute :min_amount
+
+      # @!attribute [r] max_amount
+      #   @return [Object] State-level maximum duty amount, where one applies: a decimal string such as "500000.00", a number in sandbox, or null.
+      attribute :max_amount
+
+      # @!attribute [r] sro_required
+      #   @return [Boolean, nil] Whether a district and a sub-registrar office must accompany a quote and an order.
+      attribute :sro_required
+
+      # @!attribute [r] cess_required
+      #   @return [Boolean, nil] Whether a cess amount is expected on stamp lines.
+      attribute :cess_required
+
+      # @!attribute [r] property_area_required
+      #   @return [Boolean, nil] Whether the stamp line needs a propertyArea.
+      attribute :property_area_required
+
+      # @!attribute [r] father_husband_name_required
+      #   @return [Boolean, nil] Whether the state asks for a father's or husband's name. null means not known, not no.
+      attribute :father_husband_name_required
+
+      # @!attribute [r] first_party_address_required
+      #   @return [Boolean, nil] Whether the first party's address is needed. null means not known, not no.
+      attribute :first_party_address_required
+
+      # @!attribute [r] pan_card_image_required
+      #   @return [Boolean, nil] Whether the state asks for the payer's PAN card. Recommended, never blocking. null means not known.
+      attribute :pan_card_image_required
+
+      # @!attribute [r] instrument_count
+      #   @return [Integer, nil] How many articles the state offers.
+      attribute :instrument_count
+    end
+
+    # Machine-readable field requirements for a state and, optionally, an article, a denomination and a category, plus a generated exampleBody. Further catalogue fields may be added; ignore unknown ones.
+    class EstampRequirements < Model
+      # @!attribute [r] state
+      #   @return [Hash, nil] The state the requirements are for. Further fields may be added.
+      attribute :state
+
+      # @!attribute [r] category
+      #   @return [String, nil] The category the requirements were resolved for.
+      attribute :category
+
+      # @!attribute [r] article
+      #   @return [Hash, nil] The resolved article; null when articleCode was not given.
+      attribute :article
+
+      # @!attribute [r] denomination
+      #   @return [Hash, nil] The denomination rules for the article.
+      attribute :denomination
+
+      # @!attribute [r] fields
+      #   @return [Array, nil] Required and optional fields for the combination. The fields marked required are exactly what validate and create reject when blank.
+      attribute :fields
+
+      # @!attribute [r] limits
+      #   @return [Hash, nil] Request limits reported by the catalogue, for example maxQuantityPerLine.
+      attribute :limits
+
+      # @!attribute [r] meta
+      #   @return [Hash, nil] Further catalogue flags, for example panCardImageRequired.
+      attribute :meta
+
+      # @!attribute [r] example_body
+      #   @return [Hash] A valid single-stamp request body for this combination, generated from the resolved fields (only fields marked required are added, plus the always-needed ones). Its names and values are illustrations. Ready to send to POST /v1/estamp/orders/validate.
+      attribute :example_body
+    end
+
+    # One district of a state. Further fields may be added; ignore unknown ones.
+    class EstampDistrict < Model
+      # @!attribute [r] code
+      #   @return [String] District code. Send it as district on a stamp line and in the SRO route.
+      attribute :code
+
+      # @!attribute [r] name
+      #   @return [String] District name.
+      attribute :name
+    end
+
+    # One sub-registrar office of a district. Further fields may be added; ignore unknown ones.
+    class EstampSro < Model
+      # @!attribute [r] value
+      #   @return [String] The value to send as sro on a stamp line (and as sroValue in a duty calculation).
+      attribute :value
+
+      # @!attribute [r] label
+      #   @return [String, nil] Display name of the sub-registrar office on the live catalogue (the sandbox catalogue sends name instead).
+      attribute :label
+
+      # @!attribute [r] name
+      #   @return [String, nil] Display name of the sub-registrar office in the sandbox catalogue.
+      attribute :name
+    end
+
+    # A created stamp: its id and your own line reference.
+    class EstampOrderStampRef < Model
+      # @!attribute [r] id
+      #   @return [String] Stamp id.
+      attribute :id
+
+      # @!attribute [r] client_reference
+      #   @return [String, nil] Echoes the clientReference of the line, when you sent one.
+      attribute :client_reference
+    end
+
+    # A non-blocking hint about the order. Nothing is held back because of an advisory; it clears once you act on it.
+    class EstampOrderAdvisory < Model
+      # @!attribute [r] code
+      #   @return [String] Advisory code, for example PAN_CARD_RECOMMENDED.
+      attribute :code
+
+      # @!attribute [r] field
+      #   @return [String, nil] The input the advisory is about.
+      attribute :field
+
+      # @!attribute [r] message
+      #   @return [String] Human-readable hint.
+      attribute :message
+    end
+
+    # An e-Stamp order. The same shape is returned by create, get, cancel and each item of the list; create always fills id, state, stampCount, stamps, counts and documents. Further fields may be added; ignore unknown ones.
+    class EstampOrder < Model
+      # @!attribute [r] id
+      #   @return [String] Order id, used by GET /v1/estamp/orders/{id} and the cancel and export routes.
+      attribute :id
+
+      # @!attribute [r] order_id
+      #   @return [String, nil] The issuing-side order id. The parties route POST /v1/estamp/orders/{orderId}/parties takes this one.
+      attribute :order_id
+
+      # @!attribute [r] reference
+      #   @return [String, nil] Your own order-level reference, if you supplied one.
+      attribute :reference
+
+      # @!attribute [r] state
+      #   @return [String, nil] State this order is issued in. Absent on an order the issuing side reports without it.
+      attribute :state
+
+      # @!attribute [r] status
+      #   @return [String] Pre-placement review status on a live order: PENDING_REVIEW, READY_TO_PLACE, WARNINGS, NEEDS_INFORMATION, VALIDATION_FAILED or CANCELLED. A person confirms placement with the issuing vendor separately, so these are never the vendor's PLACED, PARTIAL or FULFILLED. A sandbox order uses CREATED, PAYMENT_PENDING, PROCESSING, ISSUED, PAYMENT_FAILED, ISSUANCE_FAILED, CANCELLED or EXPIRED and advances by itself. Treat an unknown value as needing attention instead of failing.
+      attribute :status
+
+      # @!attribute [r] is_test
+      #   @return [Boolean, nil] true when the order was created in the sandbox environment.
+      attribute :is_test
+
+      # @!attribute [r] counts
+      #   @return [EstampOrderCounts, nil] counts
+      attribute :counts, model: EstampOrderCounts
+
+      # @!attribute [r] stamp_count
+      #   @return [Integer, nil] Number of stamps on the order.
+      attribute :stamp_count
+
+      # @!attribute [r] stamps
+      #   @return [Array<EstampOrderStampRef>, nil] The stamps of the order, with your clientReference.
+      attribute :stamps, model: EstampOrderStampRef, list: true
+
+      # @!attribute [r] documents
+      #   @return [Hash, nil] Document state of the order.
+      attribute :documents
+
+      # @!attribute [r] advisories
+      #   @return [Array<EstampOrderAdvisory>, nil] Non-blocking hints, for example PAN_CARD_RECOMMENDED.
+      attribute :advisories, model: EstampOrderAdvisory, list: true
+
+      # @!attribute [r] errors
+      #   @return [Array, nil] Validation findings recorded on the order.
+      attribute :errors
+
+      # @!attribute [r] warnings
+      #   @return [Array, nil] Warnings recorded on the order.
+      attribute :warnings
+
+      # @!attribute [r] warnings_acknowledged
+      #   @return [Boolean, nil] Whether warnings have been acknowledged.
+      attribute :warnings_acknowledged
+
+      # @!attribute [r] failure
+      #   @return [Hash, nil] Sandbox orders only: why the order ended badly.
+      attribute :failure
+
+      # @!attribute [r] sandbox
+      #   @return [Hash, nil] Sandbox orders only: the simulation's own clock.
+      attribute :sandbox
+
+      # @!attribute [r] created_at
+      #   @return [String, nil] When the order was created.
+      attribute :created_at
+
+      # @!attribute [r] updated_at
+      #   @return [String, nil] When the order last changed.
+      attribute :updated_at
+    end
+
+    # One page of your organization's orders. items and nextCursor are the contract.
+    class EstampOrderList < Model
+      # @!attribute [r] items
+      #   @return [Array<EstampOrder>] Orders of your organization, newest first.
+      attribute :items, model: EstampOrder, list: true
+
+      # @!attribute [r] next_cursor
+      #   @return [String, nil] Pass as cursor to fetch the next page; null on the last page.
+      attribute :next_cursor
+
+      # @!attribute [r] data
+      #   @return [Array<EstampOrder>] Same array as items, kept for clients that read the earlier documented field.
+      attribute :data, model: EstampOrder, list: true
+
+      # @!attribute [r] pagination
+      #   @return [Hash] Page position, kept for clients that read it. Page through with nextCursor.
+      attribute :pagination
+    end
+
+    # A small CSV export of an order for reconciliation.
+    class EstampOrderExport < Model
+      # @!attribute [r] filename
+      #   @return [String] Suggested file name.
+      attribute :filename
+
+      # @!attribute [r] csv
+      #   @return [String] The export as CSV text: columns id, orderId, status, state, articleCode, denomination, providerRef, createdAt, updatedAt. It describes the order's first stamp line.
+      attribute :csv
+    end
+
+    # Answer of POST /v1/estamp/orders/{orderId}/documents. File content and file names are never logged. In sandbox the file is checked and accepted but nothing is stored.
+    class EstampDocument < Model
+      # @!attribute [r] document_id
+      #   @return [String] Id of the received document.
+      attribute :document_id
+
+      # @!attribute [r] order_id
+      #   @return [String] The order the document was attached to.
+      attribute :order_id
+
+      # @!attribute [r] type
+      #   @return [String] What the file is.
+      attribute :type
+
+      # @!attribute [r] file_name
+      #   @return [String] The file name as sent.
+      attribute :file_name
+
+      # @!attribute [r] mime_type
+      #   @return [String] The content type the file was recognised as.
+      attribute :mime_type
+
+      # @!attribute [r] size_bytes
+      #   @return [Integer] File size in bytes.
+      attribute :size_bytes
+
+      # @!attribute [r] received_at
+      #   @return [String] When the file was received.
+      attribute :received_at
+
+      # @!attribute [r] status
+      #   @return [String] Always RECEIVED.
+      attribute :status
+    end
+
+    # State of the payer's PAN card for one stamp. Advisory: a stamp without one is not held back. After FAILED or REJECTED, send a new link with POST /v1/estamp/stamps/{stampId}/pan-card.
+    class EstampPanCardStatus < Model
+      # @!attribute [r] status
+      #   @return [String] NOT_PROVIDED (none sent), PROCESSING, VERIFIED, IN_REVIEW, REJECTED or FAILED.
+      attribute :status
+
+      # @!attribute [r] code
+      #   @return [String, nil] Why, as a stable code, when the status is FAILED, REJECTED or IN_REVIEW; null otherwise.
+      attribute :code
+
+      # @!attribute [r] message
+      #   @return [String, nil] The same, in words you can show your customer; null otherwise.
+      attribute :message
+    end
+
+    # One stamp. Fields not reported are omitted. Further fields may be added; ignore unknown ones.
+    class EstampStamp < Model
+      # @!attribute [r] id
+      #   @return [String] Stamp id.
+      attribute :id
+
+      # @!attribute [r] client_reference
+      #   @return [String, nil] Your own line-level reference, if you supplied one at order creation.
+      attribute :client_reference
+
+      # @!attribute [r] bulk_order_id
+      #   @return [String, nil] The order this stamp belongs to.
+      attribute :bulk_order_id
+
+      # @!attribute [r] status
+      #   @return [String] The issuing side's own per-stamp lifecycle status: PLACED, ASSIGNED, GENERATING, VERIFYING, VERIFIED or CANCELLED. Distinct from an order's pre-placement review status. Treat an unknown value as needing attention instead of failing.
+      attribute :status
+
+      # @!attribute [r] verified
+      #   @return [Boolean] Whether the stamp has completed verification.
+      attribute :verified
+
+      # @!attribute [r] pan_card
+      #   @return [EstampPanCardStatus, nil] panCard
+      attribute :pan_card, model: EstampPanCardStatus
+
+      # @!attribute [r] state
+      #   @return [String, nil] State this stamp is issued in.
+      attribute :state
+
+      # @!attribute [r] category
+      #   @return [String, nil] Stamp category.
+      attribute :category
+
+      # @!attribute [r] amount
+      #   @return [Float, nil] Stamp denomination amount in rupees.
+      attribute :amount
+
+      # @!attribute [r] uin
+      #   @return [String, nil] Unique Identification Number assigned to the stamp once generated. Absent until then.
+      attribute :uin
+
+      # @!attribute [r] cost_centre
+      #   @return [String, nil] Your cost-centre tag for this stamp, if you supplied one.
+      attribute :cost_centre
+
+      # @!attribute [r] business_unit
+      #   @return [String, nil] Your business-unit tag for this stamp, if you supplied one.
+      attribute :business_unit
+
+      # @!attribute [r] purpose
+      #   @return [String, nil] Purpose of the stamped instrument.
+      attribute :purpose
+    end
+
+    # The stamps of one order.
+    class EstampStampList < Model
+      # @!attribute [r] items
+      #   @return [Array<EstampStamp>] One entry per stamp, with its own lifecycle status and the state of its payer PAN card.
+      attribute :items, model: EstampStamp, list: true
+
+      # @!attribute [r] count
+      #   @return [Integer] Number of items.
+      attribute :count
+
+      # @!attribute [r] next_cursor
+      #   @return [String, nil] Always null today: all stamps of the order are returned.
+      attribute :next_cursor
+    end
+
+    # Answer of POST /v1/estamp/stamps/{stampId}/pan-card (HTTP 202): the check runs afterwards, so panCard.status is PROCESSING. Read the final state from panCard on the stamp.
+    class EstampPanCardResult < Model
+      # @!attribute [r] stamp_id
+      #   @return [String] Stamp id.
+      attribute :stamp_id
+
+      # @!attribute [r] pan_card
+      #   @return [EstampPanCardStatus] panCard
+      attribute :pan_card, model: EstampPanCardStatus
+    end
+
+    # Certificate delivery status. Always HTTP 200: there is no 404 or 409 for a certificate that is not there yet.
+    class EstampCertificate < Model
+      # @!attribute [r] available
+      #   @return [Boolean] Whether the certificate has been delivered and is downloadable.
+      attribute :available
+
+      # @!attribute [r] status
+      #   @return [String] not_yet_available before delivery, available once delivered.
+      attribute :status
+
+      # @!attribute [r] download_url
+      #   @return [String, nil] A StampMitra-hosted, time-limited (5 minute) presigned download URL for the certificate PDF, never a third-party URL. Only present when available is true.
+      attribute :download_url
+
+      # @!attribute [r] expires_at
+      #   @return [String, nil] Expiry of downloadUrl. Only present when available is true.
+      attribute :expires_at
+
+      # @!attribute [r] certificate_number
+      #   @return [String, nil] Certificate number, once issued. May be null even when available.
+      attribute :certificate_number
+    end
+
+    # Balance, hold and available amount of one wallet.
+    class EstampWalletPart < Model
+      # @!attribute [r] balance
+      #   @return [String] Current balance, as a decimal string.
+      attribute :balance
+
+      # @!attribute [r] held
+      #   @return [String, nil] Amount on hold, as a decimal string; null when not reported.
+      attribute :held
+
+      # @!attribute [r] available
+      #   @return [String, nil] Balance less holds, as a decimal string; null when not reported.
+      attribute :available
+    end
+
+    # Both e-Stamp wallets in one read: the Stamp Duty Wallet and, under serviceFee, the Service Fee Wallet.
+    class EstampWallet < Model
+      # @!attribute [r] balance
+      #   @return [String] Stamp Duty Wallet balance, as a decimal string.
+      attribute :balance
+
+      # @!attribute [r] held
+      #   @return [String, nil] Stamp Duty Wallet amount on hold; null when not reported.
+      attribute :held
+
+      # @!attribute [r] available
+      #   @return [String, nil] Stamp Duty Wallet balance less holds; null when not reported.
+      attribute :available
+
+      # @!attribute [r] currency
+      #   @return [String] Always INR.
+      attribute :currency
+
+      # @!attribute [r] service_fee
+      #   @return [EstampWalletPart] The Service Fee Wallet.
+      attribute :service_fee, model: EstampWalletPart
+
+      # @!attribute [r] mode
+      #   @return [String] live for a production key, test for a sandbox key.
+      attribute :mode
+
+      # @!attribute [r] simulated
+      #   @return [Boolean] true when the money is simulated (sandbox).
+      attribute :simulated
+    end
+
+    # Balance of one wallet.
+    class WalletBalance < Model
+      # @!attribute [r] balance
+      #   @return [String] Current wallet balance, as a decimal string. Parse it before comparing; never concatenate it.
+      attribute :balance
+
+      # @!attribute [r] currency
+      #   @return [String] Always INR.
+      attribute :currency
+    end
+
+    # One ledger row of a wallet.
+    class WalletTransaction < Model
+      # @!attribute [r] id
+      #   @return [String] Ledger row id; also the cursor to continue after this row.
+      attribute :id
+
+      # @!attribute [r] type
+      #   @return [String] Kind of movement, for example TOPUP, DEBIT or REFUND (SEED for the starting sandbox balance).
+      attribute :type
+
+      # @!attribute [r] amount
+      #   @return [String] Amount of the movement, as a decimal string.
+      attribute :amount
+
+      # @!attribute [r] balance_after
+      #   @return [String] Wallet balance after the movement, as a decimal string.
+      attribute :balance_after
+
+      # @!attribute [r] reference_id
+      #   @return [String] What the movement relates to, for example order:<orderId> for an order debit.
+      attribute :reference_id
+
+      # @!attribute [r] description
+      #   @return [String] Human-readable description.
+      attribute :description
+
+      # @!attribute [r] mode
+      #   @return [String] RAZORPAY for an online top-up on a live key, SANDBOX on a sandbox key; other modes may appear.
+      attribute :mode
+
+      # @!attribute [r] created_at
+      #   @return [String] When the movement was recorded.
+      attribute :created_at
+    end
+
+    # One page of a wallet ledger.
+    class WalletTransactionsPage < Model
+      # @!attribute [r] items
+      #   @return [Array<WalletTransaction>] Ledger rows, newest first.
+      attribute :items, model: WalletTransaction, list: true
+
+      # @!attribute [r] next_cursor
+      #   @return [String, nil] Pass as cursor to fetch the next page; null on the last page.
+      attribute :next_cursor
+    end
+
+    # A GST tax invoice for one Service Fee Wallet top-up.
+    class WalletInvoice < Model
+      # @!attribute [r] id
+      #   @return [String] Invoice id.
+      attribute :id
+
+      # @!attribute [r] invoice_number
+      #   @return [String, nil] The tax invoice number; null until one is issued.
+      attribute :invoice_number
+
+      # @!attribute [r] base_amount
+      #   @return [String] The top-up amount credited, as a decimal string.
+      attribute :base_amount
+
+      # @!attribute [r] gst_amount
+      #   @return [String] GST on the top-up, as a decimal string.
+      attribute :gst_amount
+
+      # @!attribute [r] total_charged
+      #   @return [String] baseAmount + gstAmount, as a decimal string.
+      attribute :total_charged
+
+      # @!attribute [r] gstin
+      #   @return [String, nil] The GSTIN the invoice was issued to.
+      attribute :gstin
+
+      # @!attribute [r] gstin_verified
+      #   @return [Boolean] Whether the GSTIN was verified.
+      attribute :gstin_verified
+
+      # @!attribute [r] legal_business_name
+      #   @return [String, nil] Legal business name on the invoice.
+      attribute :legal_business_name
+
+      # @!attribute [r] status
+      #   @return [String] Invoice status, for example PAID.
+      attribute :status
+
+      # @!attribute [r] paid_at
+      #   @return [String, nil] When the top-up was paid; null until then.
+      attribute :paid_at
+    end
+
+    # One page of Service Fee Wallet top-up invoices. A sandbox top-up is fake credit and produces no invoice, so a sandbox key always gets an empty page.
+    class WalletInvoicesPage < Model
+      # @!attribute [r] items
+      #   @return [Array<WalletInvoice>] Invoices, newest first.
+      attribute :items, model: WalletInvoice, list: true
+
+      # @!attribute [r] next_cursor
+      #   @return [String, nil] Pass as cursor to fetch the next page; null on the last page.
+      attribute :next_cursor
+    end
+
+    # The GST tax invoice for the PROCESSING FEE of one paid Stamp Duty top-up (not for the credited amount).
+    class StampDutyWalletInvoice < Model
+      # @!attribute [r] id
+      #   @return [String] The top-up id (the topupId the top-up response returned).
+      attribute :id
+
+      # @!attribute [r] invoice_number
+      #   @return [String, nil] The gapless tax-invoice number.
+      attribute :invoice_number
+
+      # @!attribute [r] razorpay_order_id
+      #   @return [String] The payment order of the top-up, to reconcile by.
+      attribute :razorpay_order_id
+
+      # @!attribute [r] base_amount
+      #   @return [String] The processing FEE: the taxable value of the invoice (not the credited amount), as a decimal string.
+      attribute :base_amount
+
+      # @!attribute [r] gst_amount
+      #   @return [String] GST on the fee (18%), as a decimal string.
+      attribute :gst_amount
+
+      # @!attribute [r] total_charged
+      #   @return [String] The invoice total: fee + GST, as a decimal string. The credited amount is not on the invoice.
+      attribute :total_charged
+
+      # @!attribute [r] credited_amount
+      #   @return [String] What the wallet was credited with (a pass-through, not on the invoice), as a decimal string.
+      attribute :credited_amount
+
+      # @!attribute [r] gstin
+      #   @return [String, nil] The GSTIN on the invoice, when the organization has one.
+      attribute :gstin
+
+      # @!attribute [r] gstin_verified
+      #   @return [Boolean] Whether the GSTIN was verified.
+      attribute :gstin_verified
+
+      # @!attribute [r] legal_business_name
+      #   @return [String, nil] Legal business name on the invoice.
+      attribute :legal_business_name
+
+      # @!attribute [r] status
+      #   @return [String] Invoice status, for example PAID.
+      attribute :status
+
+      # @!attribute [r] paid_at
+      #   @return [String, nil] When the top-up was paid; null until then.
+      attribute :paid_at
+    end
+
+    # One page of Stamp Duty Wallet top-up fee invoices. A sandbox key always gets an empty page.
+    class StampDutyWalletInvoicesPage < Model
+      # @!attribute [r] items
+      #   @return [Array<StampDutyWalletInvoice>] Newest first. Only paid top-ups that were issued an invoice number.
+      attribute :items, model: StampDutyWalletInvoice, list: true
+
+      # @!attribute [r] next_cursor
+      #   @return [String, nil] Pass as cursor to fetch the next page; null on the last page.
+      attribute :next_cursor
+
+      # @!attribute [r] notice
+      #   @return [String, nil] Sandbox only: says that sandbox top-ups are fake credit and issue no invoices.
+      attribute :notice
+    end
+
+    # A Stamp Duty Wallet top-up: the Razorpay order to pay and the fee breakdown. baseAmount, gstAmount and totalCharged are JSON numbers; every other amount is a 2-decimal string. Show your payer totalCharged and the fee lines from this response, not numbers you calculated, because the rate can change. The wallet is credited automatically when the payment succeeds.
+    class StampDutyWalletTopup < Model
+      # @!attribute [r] base_amount
+      #   @return [Float] The amount you asked for, in rupees (what the wallet is credited with). A JSON number on this route.
+      attribute :base_amount
+
+      # @!attribute [r] processing_fee_percent
+      #   @return [String] Processing fee rate that applied, as a percentage of baseAmount: 6.00.
+      attribute :processing_fee_percent
+
+      # @!attribute [r] processing_fee_amount
+      #   @return [String] The processing fee in rupees (6% of baseAmount), added on top of it, as a 2-decimal string. It is not credited to the wallet; a GST tax invoice is issued for it.
+      attribute :processing_fee_amount
+
+      # @!attribute [r] gst_amount
+      #   @return [Float] GST at 18% on the processing fee, in rupees (10.8 on a 60.00 fee). A JSON number. GST is never charged on baseAmount: stamp duty itself carries no GST.
+      attribute :gst_amount
+
+      # @!attribute [r] total_charged
+      #   @return [Float] What the payer pays: baseAmount + processingFeeAmount + gstAmount (1000 + 60.00 + 10.80 = 1070.8). A JSON number. Open Razorpay Checkout with this.
+      attribute :total_charged
+
+      # @!attribute [r] credit_amount
+      #   @return [String] What the wallet is credited with when the payment succeeds. Equals baseAmount: the fee and the GST are not credited. A 2-decimal string.
+      attribute :credit_amount
+
+      # @!attribute [r] topup_id
+      #   @return [String, nil] The top-up id: the id of the GST tax invoice for the processing fee once the payment succeeds (GET /v1/stamp-duty-wallet/invoices/{id}). Live keys only.
+      attribute :topup_id
+
+      # @!attribute [r] razorpay_order_id
+      #   @return [String, nil] Razorpay order id for Checkout. Live keys only: a sandbox top-up adds fake credit at once and opens no checkout.
+      attribute :razorpay_order_id
+
+      # @!attribute [r] razorpay_key_id
+      #   @return [String, nil] Razorpay key id for Checkout. Live keys only.
+      attribute :razorpay_key_id
+
+      # @!attribute [r] sandbox
+      #   @return [Boolean, nil] true on a sandbox top-up.
+      attribute :sandbox
+
+      # @!attribute [r] credited
+      #   @return [String, nil] Sandbox only: the amount credited at once, as a decimal string.
+      attribute :credited
+
+      # @!attribute [r] balance
+      #   @return [String, nil] Sandbox only: the wallet balance after the fake credit, as a decimal string.
+      attribute :balance
+
+      # @!attribute [r] currency
+      #   @return [String, nil] Sandbox only: INR.
+      attribute :currency
+
+      # @!attribute [r] notice
+      #   @return [String, nil] Sandbox only: a note that nothing was charged.
+      attribute :notice
+    end
+
+    # A Service Fee Wallet top-up: the Razorpay order to pay and the GST breakdown. A GST invoice is issued for the top-up. The wallet is credited automatically when the payment succeeds.
+    class ServiceFeeWalletTopup < Model
+      # @!attribute [r] base_amount
+      #   @return [String] The amount you asked for (what the wallet is credited with), as a decimal string.
+      attribute :base_amount
+
+      # @!attribute [r] gst_amount
+      #   @return [String] GST added on top of baseAmount, as a decimal string.
+      attribute :gst_amount
+
+      # @!attribute [r] processing_fee_percent
+      #   @return [String] Always 0.00 for the Service Fee Wallet.
+      attribute :processing_fee_percent
+
+      # @!attribute [r] processing_fee_amount
+      #   @return [String] Always 0.00 for the Service Fee Wallet.
+      attribute :processing_fee_amount
+
+      # @!attribute [r] credit_amount
+      #   @return [String] What the wallet is credited with when the payment succeeds. Equals baseAmount.
+      attribute :credit_amount
+
+      # @!attribute [r] total_charged
+      #   @return [String] What the payer pays: baseAmount + gstAmount.
+      attribute :total_charged
+
+      # @!attribute [r] razorpay_order_id
+      #   @return [String, nil] Razorpay order id for Checkout. Live keys only.
+      attribute :razorpay_order_id
+
+      # @!attribute [r] razorpay_key_id
+      #   @return [String, nil] Razorpay key id for Checkout. Live keys only.
+      attribute :razorpay_key_id
+
+      # @!attribute [r] sandbox
+      #   @return [Boolean, nil] true on a sandbox top-up.
+      attribute :sandbox
+
+      # @!attribute [r] credited
+      #   @return [String, nil] Sandbox only: the amount credited at once, as a decimal string.
+      attribute :credited
+
+      # @!attribute [r] balance
+      #   @return [String, nil] Sandbox only: the wallet balance after the fake credit, as a decimal string.
+      attribute :balance
+
+      # @!attribute [r] currency
+      #   @return [String, nil] Sandbox only: INR.
+      attribute :currency
+
+      # @!attribute [r] notice
+      #   @return [String, nil] Sandbox only: a note that nothing was charged.
+      attribute :notice
+    end
+
+    # Wallet balance and low-balance state of the organization that owns the API key.
+    class AccountBalance < Model
+      # @!attribute [r] generated_at
+      #   @return [String] When this snapshot was computed (cached up to 5 seconds).
+      attribute :generated_at
+
+      # @!attribute [r] environment
+      #   @return [String] Environment of the API key.
+      attribute :environment
+
+      # @!attribute [r] sandbox
+      #   @return [Boolean] True for an sk_test_ key: no real balance is ever returned.
+      attribute :sandbox
+
+      # @!attribute [r] notice
+      #   @return [String, nil] Sandbox notice; null for a live key.
+      attribute :notice
+
+      # @!attribute [r] currency
+      #   @return [String] Always INR.
+      attribute :currency
+
+      # @!attribute [r] balance
+      #   @return [Hash] Wallet cash balance (includes any leftover signup credit). Zero for a sandbox key.
+      attribute :balance
+
+      # @!attribute [r] available
+      #   @return [Hash] What a call can spend now: cash plus eligible promo credit.
+      attribute :available
+
+      # @!attribute [r] state
+      #   @return [String] OK; LOW_BALANCE below the threshold; FINISHED at zero or below the cheapest call (live calls then answer 402).
+      attribute :state
+
+      # @!attribute [r] low_balance
+      #   @return [Boolean] True when state is not OK.
+      attribute :low_balance
+
+      # @!attribute [r] low_balance_threshold
+      #   @return [Hash] Low-balance threshold (Rs 500 by default).
+      attribute :low_balance_threshold
+
+      # @!attribute [r] estimated_calls_remaining
+      #   @return [Hash] estimatedCallsRemaining
+      attribute :estimated_calls_remaining
+
+      # @!attribute [r] last_top_up
+      #   @return [Hash, nil] Newest top-up, base amount credited (GST excluded); null when never topped up.
+      attribute :last_top_up
+
+      # @!attribute [r] signup_credit
+      #   @return [Hash] signupCredit
+      attribute :signup_credit
+    end
+
+    # Usage of the organization that owns the API key: current and previous IST month, today, and the limits.
+    class AccountUsage < Model
+      # @!attribute [r] generated_at
+      #   @return [String] When this snapshot was computed (cached up to 30 seconds).
+      attribute :generated_at
+
+      # @!attribute [r] environment
+      #   @return [String] Environment of the API key; only that environment's calls are counted.
+      attribute :environment
+
+      # @!attribute [r] sandbox
+      #   @return [Boolean] True for an sk_test_ key.
+      attribute :sandbox
+
+      # @!attribute [r] notice
+      #   @return [String, nil] Sandbox notice; null for a live key.
+      attribute :notice
+
+      # @!attribute [r] timezone
+      #   @return [String] Day and month boundaries use this zone.
+      attribute :timezone
+
+      # @!attribute [r] current_month
+      #   @return [Hash] currentMonth
+      attribute :current_month
+
+      # @!attribute [r] previous_month
+      #   @return [Hash] previousMonth
+      attribute :previous_month
+
+      # @!attribute [r] today
+      #   @return [Hash] today
+      attribute :today
+
+      # @!attribute [r] limits
+      #   @return [Hash] limits
+      attribute :limits
+    end
+
     # Services your organization is entitled to (a bare JSON array on the wire). Enumerable over {Service}.
     class ServiceList
       include Enumerable
@@ -740,11 +1997,11 @@ module StampMitra
       # @param data [Array<Hash>] decoded JSON array
       # @param response [Response, nil]
       def initialize(data = [], response: nil)
-        @services = Array(data).map { |item| item.is_a?(Hash) ? Service.new(item) : item }.freeze
+        @services = Array(data).map { |entry| entry.is_a?(Hash) ? Service.new(entry) : entry }.freeze
         @response = response
       end
 
-      # @yieldparam service [Service]
+      # @yieldparam entry [Service]
       # @return [Enumerator, Array<Service>]
       def each(&block)
         return services.each unless block
@@ -763,12 +2020,104 @@ module StampMitra
         services[index]
       end
 
-      # @return [Array<Hash>] deep copies of the raw service objects
+      # @return [Array<Hash>] deep copies of the raw objects
       def to_h
         services.map(&:to_h)
       end
 
       # @return [ServiceList] a copy carrying +response+
+      def with_response(response)
+        self.class.new(to_h, response: response)
+      end
+    end
+
+    # Districts of an e-Stamp state (a bare JSON array on the wire). Enumerable over {EstampDistrict}.
+    class EstampDistrictList
+      include Enumerable
+
+      # @return [Array<EstampDistrict>]
+      attr_reader :districts
+      # @return [Response, nil] HTTP metadata
+      attr_reader :response
+
+      # @param data [Array<Hash>] decoded JSON array
+      # @param response [Response, nil]
+      def initialize(data = [], response: nil)
+        @districts = Array(data).map { |entry| entry.is_a?(Hash) ? EstampDistrict.new(entry) : entry }.freeze
+        @response = response
+      end
+
+      # @yieldparam entry [EstampDistrict]
+      # @return [Enumerator, Array<EstampDistrict>]
+      def each(&block)
+        return districts.each unless block
+
+        districts.each(&block)
+      end
+
+      # @return [Integer] number of districts
+      def size
+        districts.size
+      end
+
+      # @param index [Integer]
+      # @return [EstampDistrict, nil]
+      def [](index)
+        districts[index]
+      end
+
+      # @return [Array<Hash>] deep copies of the raw objects
+      def to_h
+        districts.map(&:to_h)
+      end
+
+      # @return [EstampDistrictList] a copy carrying +response+
+      def with_response(response)
+        self.class.new(to_h, response: response)
+      end
+    end
+
+    # Sub-registrar offices of a district (a bare JSON array on the wire). Enumerable over {EstampSro}.
+    class EstampSroList
+      include Enumerable
+
+      # @return [Array<EstampSro>]
+      attr_reader :sros
+      # @return [Response, nil] HTTP metadata
+      attr_reader :response
+
+      # @param data [Array<Hash>] decoded JSON array
+      # @param response [Response, nil]
+      def initialize(data = [], response: nil)
+        @sros = Array(data).map { |entry| entry.is_a?(Hash) ? EstampSro.new(entry) : entry }.freeze
+        @response = response
+      end
+
+      # @yieldparam entry [EstampSro]
+      # @return [Enumerator, Array<EstampSro>]
+      def each(&block)
+        return sros.each unless block
+
+        sros.each(&block)
+      end
+
+      # @return [Integer] number of sub-registrar offices
+      def size
+        sros.size
+      end
+
+      # @param index [Integer]
+      # @return [EstampSro, nil]
+      def [](index)
+        sros[index]
+      end
+
+      # @return [Array<Hash>] deep copies of the raw objects
+      def to_h
+        sros.map(&:to_h)
+      end
+
+      # @return [EstampSroList] a copy carrying +response+
       def with_response(response)
         self.class.new(to_h, response: response)
       end

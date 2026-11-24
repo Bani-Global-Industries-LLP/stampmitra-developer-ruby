@@ -6,6 +6,73 @@ module StampMitra
     # these from an upstream service and does not fix their shape, so responses are
     # {Models::GenericResponse} objects (+#[]+, +#to_h+, +#items+).
     class Estamp < Base
+      # @return [EstampOrders] typed e-Stamp orders (+client.estamp.orders+)
+      attr_reader :orders
+      # @return [EstampStamps] stamps of an order (+client.estamp.stamps+)
+      attr_reader :stamps
+
+      # @param transport [Transport]
+      # @param options [Hash] +validate_input:+ and +with_response:+
+      def initialize(transport, **options)
+        super
+        @orders = EstampOrders.new(transport, **options)
+        @stamps = EstampStamps.new(transport, **options)
+      end
+
+      # Availability of every state (GET /v1/estamp/states/availability).
+      #
+      # @param active [Boolean, nil] only active (+true+) or inactive (+false+) states
+      # @param options [Hash, nil]
+      # @return [Models::EstampStatesAvailability]
+      def get_states_availability(active: nil, options: nil)
+        api_get('/v1/estamp/states/availability', Models::EstampStatesAvailability, query: { active: active }, options: options)
+      end
+
+      # One state with its rules and flags (GET /v1/estamp/states/:stateCode).
+      #
+      # @param state_code [String] e.g. "MH"
+      # @param options [Hash, nil]
+      # @return [Models::EstampState]
+      def get_state(state_code, options: nil)
+        api_get("/v1/estamp/states/#{seg(state_code, :state_code)}", Models::EstampState, options: options)
+      end
+
+      # Field requirements of a state, optionally narrowed to an article, a denomination and a category, with a generated
+      # +example_body+ (GET /v1/estamp/states/:stateCode/requirements).
+      #
+      # @param state_code [String]
+      # @param article_code [String, nil] max 60 characters
+      # @param denomination [Numeric, nil] rupees, greater than 0
+      # @param category [String, Symbol, nil] "e_stamp" or "traditional_stamp"
+      # @param options [Hash, nil]
+      # @return [Models::EstampRequirements]
+      def get_state_requirements(state_code, article_code: nil, denomination: nil, category: nil, options: nil)
+        category = category&.to_s
+        check_requirements_query(article_code, denomination, category) if validate?
+        query = { articleCode: article_code, denomination: denomination, category: category }
+        api_get("/v1/estamp/states/#{seg(state_code, :state_code)}/requirements", Models::EstampRequirements, query: query, options: options)
+      end
+
+      # Districts of a state (GET /v1/estamp/states/:stateCode/districts).
+      #
+      # @param state_code [String]
+      # @param options [Hash, nil]
+      # @return [Models::EstampDistrictList] enumerable of {Models::EstampDistrict}
+      def list_districts(state_code, options: nil)
+        api_get("/v1/estamp/states/#{seg(state_code, :state_code)}/districts", Models::EstampDistrictList, options: options)
+      end
+
+      # Sub-registrar offices of a district (GET /v1/estamp/states/:stateCode/districts/:districtCode/sros).
+      #
+      # @param state_code [String]
+      # @param district_code [String]
+      # @param options [Hash, nil]
+      # @return [Models::EstampSroList] enumerable of {Models::EstampSro}; send an office's +value+ as +sro+ of a stamp line
+      def list_sros(state_code, district_code, options: nil)
+        api_get("/v1/estamp/states/#{seg(state_code, :state_code)}/districts/#{seg(district_code, :district_code)}/sros",
+                Models::EstampSroList, options: options)
+      end
+
       # Field schema for a service (GET /v1/estamp/schema/:serviceCode).
       #
       # @param service_code [String] e.g. "estamp.instrument.rent_agreement"
@@ -85,6 +152,20 @@ module StampMitra
         body = { 'customerName' => customer_name, 'partyName' => party_name, 'customerMobile' => customer_mobile,
                  'customerEmail' => customer_email, 'partyAddress' => party_address, 'partyPan' => party_pan }
         api_post("/v1/estamp/orders/#{seg(order_id, :order_id)}/parties", Models::GenericResponse, body, options: options)
+      end
+
+      private
+
+      def check_requirements_query(article_code, denomination, category)
+        unless article_code.nil? || (article_code.is_a?(String) && article_code.length <= 60)
+          raise ValidationError.for_field('articleCode', 'articleCode must be a String of at most 60 characters')
+        end
+        unless denomination.nil? || (denomination.is_a?(Numeric) && denomination.positive?)
+          raise ValidationError.for_field('denomination', 'denomination must be a number greater than 0')
+        end
+        return if category.nil? || EstampOrderInput::CATEGORIES.include?(category)
+
+        raise ValidationError.for_field('category', "category must be one of #{EstampOrderInput::CATEGORIES.join(', ')}")
       end
     end
   end

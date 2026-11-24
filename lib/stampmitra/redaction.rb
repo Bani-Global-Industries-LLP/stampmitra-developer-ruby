@@ -15,14 +15,14 @@ module StampMitra
     # Keys (normalised: lower-case, no "_" or "-") whose values are identifiers; the last four characters stay visible.
     IDENTIFIER_KEYS = %w[
       pan gstin accountnumber ifsc cin udyamnumber vehiclenumber regno dlnumber filenumber voterid phone
-      din chassis engine micr utr email customermobile customeremail partypan providerintentid
+      din chassis engine micr utr email customermobile customeremail partypan providerintentid payerphone
     ].freeze
 
     # Keys whose values are personal data and are removed entirely.
     PERSONAL_KEYS = %w[
       name businessname registeredname fathername ownername ownerfathername nameatbank fatherorhusbandname
       companyname tradename legalname dob address principalplaceofbusiness enterprisename customername
-      partyname partyaddress
+      partyname partyaddress firstparty secondparty fatherhusbandname legalbusinessname pancardimage
     ].freeze
 
     # Matches API keys (sk_test_... / sk_live_...) inside free text.

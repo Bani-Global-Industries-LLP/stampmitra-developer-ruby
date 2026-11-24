@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'stringio'
+
 # Maps the shared retry-scenarios.json entries onto public SDK calls (used by unit and conformance tests).
 module Scenarios
   # Maps method + path of a scenario to the public resource call that produces it. Scenarios that describe a POST
@@ -7,6 +9,8 @@ module Scenarios
   # the resource methods always attach a generated key, so they cannot express a keyless POST.
   def perform(client, scenario, options)
     path = scenario['path']
+    result = perform_estamp(client, scenario['method'], path, options)
+    return result unless result == :unmapped
     return keyless_post(client, scenario, options) if scenario['method'] == 'POST' && scenario['idempotencyKey'] == false
 
     case [scenario['method'], path.sub(%r{/(ord_1|missing|evt_1)}, '/ID')]
@@ -21,6 +25,30 @@ module Scenarios
     when ['POST', '/v1/estamp/orders/ID/parties'] then client.estamp.add_parties('ord_1', party_name: 'B', options: options)
     when ['POST', '/v1/verify/pan'] then client.verify.pan(pan: 'ABCDE1234F', options: options)
     else flunk "no mapping for #{scenario['method']} #{path}"
+    end
+  end
+
+  STAMP_LINE = { state: 'MH', article_code: 'ART1', denomination: 1000, first_party: 'Jane Doe' }.freeze
+
+  # The 1.2.0 routes always go through the public resource methods (never the raw transport), so the never-retry,
+  # retry-safe and generated-key rules are exercised where users meet them.
+  def perform_estamp(client, verb, path, options)
+    case [verb, path.sub(%r{/(estord|eststamp)_\w+}, '/\1_ID')]
+    when ['GET', '/v1/estamp/states/MH'] then client.estamp.get_state('MH', options: options)
+    when ['GET', '/v1/stamp-duty-wallet'] then client.wallets.stamp_duty.get_balance(options: options)
+    when ['GET', '/v1/estamp/orders/estord_ID'] then client.estamp.orders.get(path.split('/').last, options: options)
+    when ['POST', '/v1/estamp/orders'] then client.estamp.orders.create(stamps: [STAMP_LINE], options: options)
+    when ['POST', '/v1/estamp/orders/validate'] then client.estamp.orders.validate(stamps: [STAMP_LINE], options: options)
+    when ['POST', '/v1/estamp/orders/estord_ID/documents']
+      client.estamp.orders.upload_document('estord_1', file: StringIO.new("%PDF-1.4\n%%EOF\n"), filename: 'pan.pdf', options: options)
+    when ['POST', '/v1/estamp/orders/estord_ID/cancel'] then client.estamp.orders.cancel('estord_1', options: options)
+    when ['POST', '/v1/estamp/stamps/eststamp_ID/cancel'] then client.estamp.stamps.cancel('eststamp_1', options: options)
+    when ['POST', '/v1/estamp/stamps/eststamp_ID/replace'] then client.estamp.stamps.replace('eststamp_1', options: options)
+    when ['POST', '/v1/estamp/stamps/eststamp_ID/pan-card']
+      client.estamp.stamps.set_pan_card('eststamp_1', pan_card_image: 'https://cdn.example.com/pan.jpg', options: options)
+    when ['POST', '/v1/stamp-duty-wallet/topup'] then client.wallets.stamp_duty.topup(base_amount: 1000, options: options)
+    when ['POST', '/v1/service-fee-wallet/topup'] then client.wallets.service_fee.topup(base_amount: 500, options: options)
+    else :unmapped
     end
   end
 

@@ -16,7 +16,7 @@ No `Gemfile.lock` is committed: this is a library and CI should keep testing aga
 
 ## Conformance suite
 
-`test/conformance` is a black-box run (all 31 operations, every documented error fixture, error mapping, retries, idempotency,
+`test/conformance` is a black-box run (all 62 operations, every documented error fixture, error mapping, retries, idempotency,
 timeouts, dropped connections, pagination, shared vectors) against the spec repository's mock server. It needs Node.js and a checkout
 of the spec repository, whose **default branch (`main`) must exist**:
 

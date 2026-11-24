@@ -34,12 +34,15 @@ module StampMitra
       end
 
       # Idempotent by default: the transport adds an Idempotency-Key and reuses it across retries.
-      def api_post(path, model, body = nil, options: nil, idempotent: true)
-        run(:post, path, model, body: body && compact(body), options: options, idempotent: idempotent)
+      # +retry_policy+: :never (never auto-retried), :safe (retried without a key), nil (retried only with a key).
+      def api_post(path, model, body = nil, options: nil, idempotent: true, retry_policy: nil, multipart: nil)
+        run(:post, path, model, body: body && compact(body), options: options, idempotent: idempotent, retry_policy: retry_policy,
+                                multipart: multipart)
       end
 
-      def run(method, path, model, query: nil, body: nil, options: nil, idempotent: false)
-        data, response = transport.request(method, path, query: query, body: body, options: options, idempotent: idempotent)
+      def run(method, path, model, query: nil, body: nil, options: nil, idempotent: false, retry_policy: nil, multipart: nil)
+        data, response = transport.request(method, path, query: query, body: body, options: options, idempotent: idempotent,
+                                                         retry_policy: retry_policy, multipart: multipart)
         typed = model.is_a?(Class) ? build(model, data, response) : data
         @with_response ? Result.new(typed, response) : typed
       end
@@ -62,6 +65,37 @@ module StampMitra
         raise ValidationError.for_field(name, "#{name} must be valid UTF-8") unless text.valid_encoding?
 
         text.b.gsub(/[^A-Za-z0-9\-._~]/n) { |char| format('%%%02X', char.ord) }
+      end
+
+      # Follows +next_cursor+ page by page: +fetch.call(cursor)+ returns a page (or a Result wrapping one); each page is yielded.
+      def walk_pages(first_cursor, fetch)
+        cursor = first_cursor
+        loop do
+          page = fetch.call(cursor)
+          page = page.data if page.is_a?(Result)
+          yield page
+          following = page.next_cursor
+          break if following.nil? || following.to_s.empty?
+          raise Error.new('The API returned the same pagination cursor twice', code: 'PAGINATION_LOOP') if following == cursor
+
+          cursor = following
+        end
+        nil
+      end
+
+      # Shared body of the lazy +each+ / +each_page+ iterators built around +list_method+.
+      def each_item(each_name, pages_name, list_method, filters, &block)
+        return enum_for(each_name, **filters) unless block
+
+        each_page_of(pages_name, list_method, filters) { |page| Array(page.items).each(&block) }
+        nil
+      end
+
+      def each_page_of(pages_name, list_method, filters, &block)
+        return enum_for(pages_name, **filters) unless block
+
+        params = filters.except(:cursor)
+        walk_pages(filters[:cursor], ->(cursor) { public_send(list_method, **params, cursor: cursor) }, &block)
       end
 
       def compact(hash)

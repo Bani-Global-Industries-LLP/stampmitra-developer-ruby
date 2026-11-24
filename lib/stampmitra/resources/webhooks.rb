@@ -36,14 +36,14 @@ module StampMitra
         api_get('/v1/webhooks/events', Models::GenericResponse, query: { limit: limit, cursor: cursor }, options: options)
       end
 
-      # Replays a delivery (POST /v1/webhooks/events/:id/replay). NOT idempotent: it is never retried
-      # automatically unless you pass +options: { idempotency_key: }+.
+      # Replays a delivery (POST /v1/webhooks/events/:id/replay). NOT idempotent: it is NEVER retried automatically.
       #
       # @param id [String] the webhook event id
       # @param options [Hash, nil]
       # @return [Models::GenericResponse]
       def replay(id, options: nil)
-        api_post("/v1/webhooks/events/#{seg(id, :id)}/replay", Models::GenericResponse, nil, options: options, idempotent: false)
+        api_post("/v1/webhooks/events/#{seg(id, :id)}/replay", Models::GenericResponse, nil, options: options, idempotent: false,
+                                                                                             retry_policy: :never)
       end
     end
   end

@@ -5,6 +5,7 @@ require 'support/mock_server'
 require 'support/scenarios'
 require 'support/spec_coverage'
 require 'securerandom'
+require 'stringio'
 
 # Black-box conformance run against the spec repository's mock server (scripts/mock-server.mjs), plus a real
 # loopback server for bodies and failures the mock cannot produce. See test/support/mock_server.rb for how the
@@ -47,7 +48,65 @@ class ConformanceTest < Minitest::Test
     'GET /v1/logs' => ->(c, o) { c.logs.list(limit: 50, options: o) },
     'GET /v1/webhooks/events' => ->(c, o) { c.webhooks.events.list(limit: 20, options: o) },
     'POST /v1/webhooks/events/{id}/replay' => ->(c, o) { c.webhooks.events.replay('evt_1', options: o) }
-  }.freeze
+  }.merge(
+    # ---- contract 1.2.0: the 31 e-Stamp catalogue, order, stamp, wallet and account operations ----
+    'GET /v1/estamp/states/availability' => ->(c, o) { c.estamp.get_states_availability(active: true, options: o) },
+    'GET /v1/estamp/states/{stateCode}' => ->(c, o) { c.estamp.get_state('MH', options: o) },
+    'GET /v1/estamp/states/{stateCode}/requirements' => lambda { |c, o|
+      c.estamp.get_state_requirements('MH', article_code: 'ART1', denomination: 500, category: 'e_stamp', options: o)
+    },
+    'GET /v1/estamp/states/{stateCode}/districts' => ->(c, o) { c.estamp.list_districts('MH', options: o) },
+    'GET /v1/estamp/states/{stateCode}/districts/{districtCode}/sros' => ->(c, o) { c.estamp.list_sros('MH', 'PUNE', options: o) },
+    'POST /v1/estamp/orders/validate' => ->(c, o) { c.estamp.orders.validate(**ConformanceTest.order_args, options: o) },
+    'POST /v1/estamp/orders' => ->(c, o) { c.estamp.orders.create(**ConformanceTest.order_args, options: o) },
+    'GET /v1/estamp/orders' => ->(c, o) { c.estamp.orders.list(page: 1, limit: 20, options: o) },
+    'GET /v1/estamp/orders/{id}' => ->(c, o) { c.estamp.orders.get('estord_9c1f2a3b', options: o) },
+    'POST /v1/estamp/orders/{id}/cancel' => ->(c, o) { c.estamp.orders.cancel('estord_9c1f2a3b', options: o) },
+    'GET /v1/estamp/orders/{id}/export' => ->(c, o) { c.estamp.orders.export('estord_9c1f2a3b', options: o) },
+    'GET /v1/estamp/orders/{id}/stamps' => ->(c, o) { c.estamp.orders.list_stamps('estord_9c1f2a3b', options: o) },
+    'POST /v1/estamp/orders/{orderId}/documents' => lambda { |c, o|
+      c.estamp.orders.upload_document('estord_9c1f2a3b', file: StringIO.new(ConformanceTest.pdf), filename: 'pan.pdf', type: 'pan_card', options: o)
+    },
+    'GET /v1/estamp/stamps/{stampId}' => ->(c, o) { c.estamp.stamps.get('eststamp_4f21ab', options: o) },
+    'POST /v1/estamp/stamps/{stampId}/cancel' => ->(c, o) { c.estamp.stamps.cancel('eststamp_4f21ab', options: o) },
+    'POST /v1/estamp/stamps/{stampId}/replace' => ->(c, o) { c.estamp.stamps.replace('eststamp_4f21ab', options: o) },
+    'POST /v1/estamp/stamps/{stampId}/pan-card' => lambda { |c, o|
+      c.estamp.stamps.set_pan_card('eststamp_4f21ab', pan_card_image: 'https://cdn.example.com/kyc/pan-4417.jpg', options: o)
+    },
+    'GET /v1/estamp/stamps/{stampId}/certificate' => ->(c, o) { c.estamp.stamps.get_certificate('eststamp_4f21ab', options: o) },
+    'GET /v1/estamp/wallet' => ->(c, o) { c.wallets.get(options: o) },
+    'GET /v1/stamp-duty-wallet' => ->(c, o) { c.wallets.stamp_duty.get_balance(options: o) },
+    'POST /v1/stamp-duty-wallet/topup' => ->(c, o) { c.wallets.stamp_duty.topup(base_amount: 1000, options: o) },
+    'GET /v1/stamp-duty-wallet/transactions' => ->(c, o) { c.wallets.stamp_duty.list_transactions(limit: 20, options: o) },
+    'GET /v1/stamp-duty-wallet/invoices' => ->(c, o) { c.wallets.stamp_duty.list_invoices(limit: 20, options: o) },
+    'GET /v1/stamp-duty-wallet/invoices/{id}' => ->(c, o) { c.wallets.stamp_duty.get_invoice('cmwtopup1234567890', options: o) },
+    'GET /v1/service-fee-wallet' => ->(c, o) { c.wallets.service_fee.get_balance(options: o) },
+    'POST /v1/service-fee-wallet/topup' => ->(c, o) { c.wallets.service_fee.topup(base_amount: 500, options: o) },
+    'GET /v1/service-fee-wallet/transactions' => ->(c, o) { c.wallets.service_fee.list_transactions(limit: 20, options: o) },
+    'GET /v1/service-fee-wallet/invoices' => ->(c, o) { c.wallets.service_fee.list_invoices(limit: 20, options: o) },
+    'GET /v1/service-fee-wallet/invoices/{id}' => ->(c, o) { c.wallets.service_fee.get_invoice('inv_01HZX4K9', options: o) },
+    'GET /v1/account/balance' => ->(c, o) { c.account.balance(options: o) },
+    'GET /v1/account/usage' => ->(c, o) { c.account.usage(options: o) }
+  ).freeze
+
+  # Operations that take (or require) an Idempotency-Key: the SDK generates one. Every other POST sends none.
+  KEYED_POSTS = %w[verify/pan verify/gstin verify/rc verify/voter-id verify/driving-license verify/passport verify/cin verify/udyam
+                   verify/pan-to-gstin verify/pan-to-udyam verify/bank-account estamp/duty/calculate estamp/orders/{orderId}/parties
+                   orders payments/intents estamp/orders estamp/orders/{orderId}/documents].map { |p| "POST /v1/#{p}" }.freeze
+
+  def self.fixture_json(name)
+    JSON.parse(File.read(File.join(MockServer.spec_dir, 'fixtures', 'operations', "#{name}.json"), encoding: 'UTF-8'))
+  end
+
+  # The golden order body and PAN card of the spec repository's fixtures (read lazily: the mock may be absent).
+  def self.order_args
+    body = fixture_json('post-v1-estamp-orders-validate.success').dig('request', 'body')
+    { stamps: body['stamps'], reference: body['reference'] }
+  end
+
+  def self.pdf
+    fixture_json('post-v1-estamp-orders-orderid-documents.success').dig('request', 'multipart', 'parts', 0, 'content')
+  end
 
   SAMPLE_PATHS = {
     'GET /v1/services/{serviceCode}' => '/v1/services/estamp.instrument.rent_agreement',
@@ -61,7 +120,23 @@ class ConformanceTest < Minitest::Test
     'GET /v1/orders/{id}/documents' => '/v1/orders/o1/documents',
     'GET /v1/orders/{id}/documents/{documentId}/download' => '/v1/orders/o1/documents/doc_1/download',
     'GET /v1/payments/intents/{id}' => '/v1/payments/intents/pi_1',
-    'POST /v1/webhooks/events/{id}/replay' => '/v1/webhooks/events/evt_1/replay'
+    'POST /v1/webhooks/events/{id}/replay' => '/v1/webhooks/events/evt_1/replay',
+    'GET /v1/estamp/states/{stateCode}' => '/v1/estamp/states/MH',
+    'GET /v1/estamp/states/{stateCode}/requirements' => '/v1/estamp/states/MH/requirements',
+    'GET /v1/estamp/states/{stateCode}/districts' => '/v1/estamp/states/MH/districts',
+    'GET /v1/estamp/states/{stateCode}/districts/{districtCode}/sros' => '/v1/estamp/states/MH/districts/PUNE/sros',
+    'GET /v1/estamp/orders/{id}' => '/v1/estamp/orders/estord_9c1f2a3b',
+    'POST /v1/estamp/orders/{id}/cancel' => '/v1/estamp/orders/estord_9c1f2a3b/cancel',
+    'GET /v1/estamp/orders/{id}/export' => '/v1/estamp/orders/estord_9c1f2a3b/export',
+    'GET /v1/estamp/orders/{id}/stamps' => '/v1/estamp/orders/estord_9c1f2a3b/stamps',
+    'POST /v1/estamp/orders/{orderId}/documents' => '/v1/estamp/orders/estord_9c1f2a3b/documents',
+    'GET /v1/estamp/stamps/{stampId}' => '/v1/estamp/stamps/eststamp_4f21ab',
+    'POST /v1/estamp/stamps/{stampId}/cancel' => '/v1/estamp/stamps/eststamp_4f21ab/cancel',
+    'POST /v1/estamp/stamps/{stampId}/replace' => '/v1/estamp/stamps/eststamp_4f21ab/replace',
+    'POST /v1/estamp/stamps/{stampId}/pan-card' => '/v1/estamp/stamps/eststamp_4f21ab/pan-card',
+    'GET /v1/estamp/stamps/{stampId}/certificate' => '/v1/estamp/stamps/eststamp_4f21ab/certificate',
+    'GET /v1/stamp-duty-wallet/invoices/{id}' => '/v1/stamp-duty-wallet/invoices/cmwtopup1234567890',
+    'GET /v1/service-fee-wallet/invoices/{id}' => '/v1/service-fee-wallet/invoices/inv_01HZX4K9'
   }.freeze
 
   def setup
@@ -89,10 +164,10 @@ class ConformanceTest < Minitest::Test
     Dir[File.join(fixtures_dir, '*.json')].map { |path| [File.basename(path), JSON.parse(File.read(path, encoding: 'UTF-8'))] }
   end
 
-  # ---- 31 operations ---------------------------------------------------------
+  # ---- 62 operations ---------------------------------------------------------
 
-  def test_there_are_exactly_31_operations_and_they_match_the_spec
-    assert_equal 31, OPS.size
+  def test_there_are_exactly_62_operations_and_they_match_the_spec
+    assert_equal 62, OPS.size
     assert_equal SpecCoverage.spec_operations(TestHelper::ROOT), OPS.keys.map { |k| SpecCoverage.normalise(k) }.sort
   end
 
@@ -110,7 +185,7 @@ class ConformanceTest < Minitest::Test
       assert_equal "Bearer #{KEY}", headers['authorization'], key
       assert_equal 'application/json', headers['accept'], key
       assert_match(%r{\Astampmitra-ruby/#{Regexp.escape(StampMitra::VERSION)} \(Ruby }, headers['user-agent'], key)
-      if verb == 'POST' && !key.include?('/replay')
+      if KEYED_POSTS.include?(key)
         assert_match(/\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/, headers['idempotency-key'], key)
       else
         refute headers.key?('idempotency-key'), key
@@ -134,7 +209,7 @@ class ConformanceTest < Minitest::Test
     MockServer.reset
     OPS.each_value { |call| call.call(client, nil) }
     hit = MockServer.recorded.map { |r| "#{r['method']} #{r['path']}" }
-    assert_equal 31, hit.uniq.size
+    assert_equal 62, hit.uniq.size
   end
 
   # ---- documented error fixtures: every operation x every documented status ---
@@ -142,7 +217,7 @@ class ConformanceTest < Minitest::Test
   def test_every_documented_error_fixture_maps_to_the_right_exception
     classes = { 400 => StampMitra::ValidationError, 401 => StampMitra::AuthenticationError, 402 => StampMitra::PaymentRequiredError,
                 403 => StampMitra::PermissionDeniedError, 404 => StampMitra::NotFoundError, 409 => StampMitra::ConflictError,
-                429 => StampMitra::RateLimitError }
+                422 => StampMitra::ValidationError, 429 => StampMitra::RateLimitError }
     checked = 0
     fixture_files.each do |name, fx|
       next unless fx['scenario'].to_s.start_with?('error-')
@@ -158,9 +233,12 @@ class ConformanceTest < Minitest::Test
       assert_equal body['requestId'], error.request_id, name
       body['field'].nil? ? assert_nil(error.field, name) : assert_equal(body['field'], error.field, name)
       refute_includes error.message, KEY
+      wallet = body.dig('details', 'wallet')
+      wallet.nil? ? assert_nil(error.wallet, name) : assert_equal(wallet, error.wallet, name)
+      assert_equal Array(body.dig('details', 'errors')).map { |i| i['code'] }, error.errors.map(&:code), name
       checked += 1
     end
-    assert_operator checked, :>=, 100
+    assert_operator checked, :>=, 300
   end
 
   def test_all_eleven_error_statuses_on_a_generic_route
@@ -188,11 +266,162 @@ class ConformanceTest < Minitest::Test
     assert_equal 2, MockServer.recorded.size
   end
 
-  def test_429_without_retry_after_uses_jittered_backoff
+  # Contract 1.2.0 sends Retry-After on every documented 429, so the delay is the header's value, not computed backoff.
+  # (Jittered backoff for a 429 without the header is covered by the shared scenario get-429-no-retry-after-header.)
+  def test_a_documented_429_carries_retry_after_which_replaces_the_computed_backoff
     error = assert_raises(StampMitra::RateLimitError) { client(max_retries: 1).estamp.list_states(options: scenario('error-429')) }
-    assert_nil error.retry_after
-    assert_equal 1, @sleeps.size
-    assert_operator @sleeps.first, :<=, 0.5
+    assert_in_delta 1.0, error.retry_after
+    assert_equal [1.0], @sleeps
+  end
+
+  # ---- every golden fixture of the 31 new operations, replayed through the SDK ------------------------------------------
+
+  NEW_OPERATIONS = [
+    'GET /v1/estamp/states/availability',
+    'GET /v1/estamp/states/{stateCode}',
+    'GET /v1/estamp/states/{stateCode}/requirements',
+    'GET /v1/estamp/states/{stateCode}/districts',
+    'GET /v1/estamp/states/{stateCode}/districts/{districtCode}/sros',
+    'POST /v1/estamp/orders/validate',
+    'POST /v1/estamp/orders',
+    'GET /v1/estamp/orders',
+    'GET /v1/estamp/orders/{id}',
+    'POST /v1/estamp/orders/{id}/cancel',
+    'GET /v1/estamp/orders/{id}/export',
+    'GET /v1/estamp/orders/{id}/stamps',
+    'POST /v1/estamp/orders/{orderId}/documents',
+    'GET /v1/estamp/stamps/{stampId}',
+    'POST /v1/estamp/stamps/{stampId}/cancel',
+    'POST /v1/estamp/stamps/{stampId}/replace',
+    'POST /v1/estamp/stamps/{stampId}/pan-card',
+    'GET /v1/estamp/stamps/{stampId}/certificate',
+    'GET /v1/estamp/wallet',
+    'GET /v1/stamp-duty-wallet',
+    'POST /v1/stamp-duty-wallet/topup',
+    'GET /v1/stamp-duty-wallet/transactions',
+    'GET /v1/stamp-duty-wallet/invoices',
+    'GET /v1/stamp-duty-wallet/invoices/{id}',
+    'GET /v1/service-fee-wallet',
+    'POST /v1/service-fee-wallet/topup',
+    'GET /v1/service-fee-wallet/transactions',
+    'GET /v1/service-fee-wallet/invoices',
+    'GET /v1/service-fee-wallet/invoices/{id}',
+    'GET /v1/account/balance',
+    'GET /v1/account/usage'
+  ].freeze
+
+  def test_the_table_covers_exactly_the_31_new_operations
+    assert_equal 31, NEW_OPERATIONS.size
+  end
+
+  def replay_fixture(fixture)
+    MockServer.reset
+    op = "#{fixture.dig('operation', 'method')} #{fixture.dig('operation', 'path')}"
+    request = fixture['request']
+    options = { headers: { 'x-mock-scenario' => fixture['scenario'] } }
+    sent_key = request.dig('headers', 'Idempotency-Key')
+    options[:idempotency_key] = sent_key if sent_key
+    result = error = nil
+    begin
+      result = OPS.fetch(op).call(client(max_retries: 0), options)
+    rescue StampMitra::Error => e
+      error = e
+    end
+    [op, request, result, error, MockServer.recorded.last]
+  end
+
+  def test_every_fixture_of_the_new_operations_replays_request_and_response
+    count = 0
+    fixture_files.each do |name, fx|
+      op = "#{fx.dig('operation', 'method')} #{fx.dig('operation', 'path')}"
+      next unless NEW_OPERATIONS.include?(op)
+
+      op, request, result, error, seen = replay_fixture(fx)
+      status = fx.dig('response', 'status')
+      assert_equal request['method'], seen['method'], name
+      assert_equal request['path'], seen['path'], name
+      assert_equal request['query'], seen['query'], name if request['method'] == 'GET' && request['query']
+      assert_request_body(name, request, seen)
+      status < 400 ? assert_response(name, fx, result, error) : assert_error(name, fx, error)
+      refute_nil seen['headers']['authorization'], op
+      count += 1
+    end
+    assert_equal fixture_files.count { |_n, fx| NEW_OPERATIONS.include?("#{fx.dig('operation', 'method')} #{fx.dig('operation', 'path')}") }, count
+    assert_operator count, :>=, 190
+  end
+
+  def assert_request_body(name, request, seen)
+    if request['multipart']
+      assert_match %r{\Amultipart/form-data; boundary=}, seen['headers']['content-type'], name
+      parts = seen['body']['multipart']
+      expected = request['multipart']['parts']
+      assert_equal expected.map { |p| p['name'] }, parts.map { |p| p['name'] }, name
+      expected.zip(parts).each do |want, got|
+        %w[filename contentType value].each do |key|
+          want[key].nil? ? assert_nil(got[key], name) : assert_equal(want[key], got[key], "#{name} #{key}")
+        end
+        assert_equal want['content'].bytesize, got['size'], name if want['content']
+      end
+    elsif request['body'].is_a?(Hash) && !request['body'].empty? && request['method'] == 'POST'
+      assert_equal request['body'], seen['body'], name
+    end
+  end
+
+  def assert_response(name, fixture, result, error)
+    assert_nil error, "#{name}: #{error&.message}"
+    expected = fixture.dig('response', 'body')
+    assert_equal expected, result.to_h, name
+    assert_equal fixture.dig('response', 'status'), result.response.status, name
+  end
+
+  def assert_error(name, fixture, error)
+    refute_nil error, name
+    assert_equal fixture.dig('response', 'status'), error.status, name
+    assert_equal fixture.dig('response', 'body', 'error', 'code'), error.code, name
+  end
+
+  def test_the_create_order_key_is_generated_when_omitted_and_the_caller_key_wins
+    client.estamp.orders.create(**ConformanceTest.order_args)
+    key = MockServer.recorded.last['headers']['idempotency-key']
+    assert_match(/\A[0-9a-f-]{36}\z/, key)
+    MockServer.reset
+    client.estamp.orders.create(**ConformanceTest.order_args, options: { idempotency_key: 'lease-2026-0412-v1' })
+    assert_equal 'lease-2026-0412-v1', MockServer.recorded.last['headers']['idempotency-key']
+  end
+
+  def test_multipart_upload_is_a_real_multipart_request_with_file_and_type_parts
+    client.estamp.orders.upload_document('estord_9c1f2a3b', file: StringIO.new(ConformanceTest.pdf), filename: 'pan.pdf', type: 'pan_card')
+    seen = MockServer.recorded.last
+    parts = seen['body']['multipart']
+    assert_equal %w[file type], parts.map { |p| p['name'] }
+    assert_equal 'pan.pdf', parts[0]['filename']
+    assert_equal 'application/pdf', parts[0]['contentType']
+    assert_equal ConformanceTest.pdf.bytesize, parts[0]['size']
+    assert_equal 'pan_card', parts[1]['value']
+    refute_empty seen['headers']['idempotency-key']
+  end
+
+  def test_the_new_never_retry_operations_make_exactly_one_attempt_against_the_mock
+    {
+      'POST /v1/estamp/orders/{id}/cancel' => 503, 'POST /v1/estamp/stamps/{stampId}/cancel' => 502,
+      'POST /v1/estamp/stamps/{stampId}/replace' => 503, 'POST /v1/estamp/stamps/{stampId}/pan-card' => 503,
+      'POST /v1/stamp-duty-wallet/topup' => 503, 'POST /v1/service-fee-wallet/topup' => 429
+    }.each do |op, status|
+      MockServer.reset
+      assert_raises(StampMitra::Error, op) { OPS.fetch(op).call(client, headers: { 'x-mock-scenario' => "seq:nr#{status}#{op.hash.abs}:#{status},200" }) }
+      assert_equal 1, MockServer.recorded.size, op
+    end
+  end
+
+  def test_retry_after_is_honoured_on_503_and_on_a_keyed_429_for_the_new_routes
+    client.estamp.get_state('MH', options: scenario('seq:ra503:503,200'))
+    assert_equal 2, MockServer.recorded.size
+    MockServer.reset
+    @sleeps.clear
+    client.estamp.orders.create(**ConformanceTest.order_args, options: scenario('seq:ra429:429,201'))
+    assert_equal 2, MockServer.recorded.size
+    keys = MockServer.recorded.map { |r| r['headers']['idempotency-key'] }
+    assert_equal 1, keys.uniq.size
   end
 
   # ---- shared retry scenarios: once against the mock, once against a scripted loopback server ----
@@ -202,7 +431,9 @@ class ConformanceTest < Minitest::Test
     next if spec_case['optional']
 
     name = spec_case['name'].tr('-', '_')
-    unless spec_case['sequence'].any? { |s| s == 'timeout' || (s.is_a?(Hash) && (s['headers'] || s['body'])) }
+    # The mock's documented 409 for POST /v1/orders is IDEMPOTENCY_IN_PROGRESS, which the SDK retries by design (after Retry-After);
+    # the "409 with any other code is not retried" rule is checked by the unit and loopback variants.
+    unless spec_case['name'] == 'post-orders-409-not-retried' || spec_case['sequence'].any? { |s| s == 'timeout' || (s.is_a?(Hash) && (s['headers'] || s['body'])) }
       define_method("test_retry_scenario_on_mock_#{name}") { run_on_mock(spec_case) }
     end
     define_method("test_retry_scenario_on_loopback_#{name}") { run_on_loopback(spec_case) }
