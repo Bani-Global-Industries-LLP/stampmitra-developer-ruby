@@ -6,8 +6,8 @@ require 'tmpdir'
 require 'fileutils'
 
 class SpecCoverageTest < Minitest::Test
-  def test_the_spec_has_31_operations_and_every_one_has_an_sdk_method
-    assert_equal 31, SpecCoverage.spec_operations(TestHelper::ROOT).size
+  def test_the_spec_has_62_operations_and_every_one_has_an_sdk_method
+    assert_equal 62, SpecCoverage.spec_operations(TestHelper::ROOT).size
     assert_empty SpecCoverage.missing(TestHelper::ROOT), 'spec operations without an SDK method'
     assert_empty SpecCoverage.extra(TestHelper::ROOT), 'SDK paths that are not in the spec'
   end

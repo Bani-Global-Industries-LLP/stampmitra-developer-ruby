@@ -21,6 +21,10 @@ module StampMitra
     attr_reader :logs
     # @return [Resources::Webhooks] webhooks (+webhooks.events+)
     attr_reader :webhooks
+    # @return [Resources::Wallets] the Stamp Duty and Service Fee wallets (+wallets.stamp_duty+, +wallets.service_fee+)
+    attr_reader :wallets
+    # @return [Resources::Account] account balance and usage
+    attr_reader :account
 
     private
 
@@ -34,6 +38,8 @@ module StampMitra
       @usage = Resources::Usage.new(transport, **opts)
       @logs = Resources::Logs.new(transport, **opts)
       @webhooks = Resources::Webhooks.new(transport, **opts)
+      @wallets = Resources::Wallets.new(transport, **opts)
+      @account = Resources::Account.new(transport, **opts)
     end
   end
 
