@@ -16,7 +16,10 @@ module StampMitra
   #   parties, orders, payment intents) and reuses the same key on every attempt, so
   #   a retry replays the original result instead of billing twice. Webhook replay
   #   is never retried unless the caller supplies a key.
-  # * Retried: 429, 502, 503, 504, connection errors and timeouts.
+  # * Operations marked +retry_policy: :never+ (order cancel, stamp cancel/replace, PAN card link, wallet top-ups, webhook
+  #   replay) are never retried, with or without a key; +retry_policy: :safe+ (the unbilled order validation) is retried
+  #   even without a key.
+  # * Retried: 429, 502, 503, 504, connection errors and timeouts, and 409 IDEMPOTENCY_IN_PROGRESS (same key, after Retry-After).
   # * Backoff: exponential with full jitter (0.5s base, 8s cap); Retry-After
   #   (seconds or HTTP date, capped at 60s) wins when the server sends it.
   # @api private
@@ -66,22 +69,43 @@ module StampMitra
     # @param body [Hash, nil] JSON body for POST
     # @param options [Hash, RequestOptions, nil]
     # @param idempotent [Boolean] generate an Idempotency-Key when the caller gave none
+    # @param retry_policy [Symbol, nil] +:never+, +:safe+, or nil for the default (GET, or POST with a key)
+    # @param multipart [Array<Multipart::Part>, nil] sent as multipart/form-data instead of +body+
     # @return [Array(Object, Response)] decoded JSON and response metadata
     # @raise [Error]
-    def request(method, path, query: nil, body: nil, options: nil, idempotent: false)
-      execute(prepare(method, path, RequestOptions.build(options), query: query, body: body, idempotent: idempotent))
+    def request(method, path, query: nil, body: nil, options: nil, idempotent: false, retry_policy: nil, multipart: nil)
+      call = prepare(method, path, RequestOptions.build(options), query: query, body: body, idempotent: idempotent,
+                                                                  retry_policy: retry_policy, multipart: multipart)
+      execute(call)
     end
 
     private
 
     # Everything that stays constant across the attempts of one logical request.
-    Call = Struct.new(:verb, :url, :headers, :payload, :timeout, :retry_safe, :max_retries)
+    Call = Struct.new(:verb, :url, :headers, :payload, :timeout, :retry_safe, :max_retries, :log_body)
     private_constant :Call
 
-    def prepare(method, path, opts, query:, body:, idempotent:)
+    def prepare(method, path, opts, query:, body:, idempotent:, retry_policy:, multipart:)
       key = opts.idempotency_key || (idempotent && method == :post ? generate_key : nil)
-      Call.new(method, build_url(path, query), build_headers(opts, key), (JSON.generate(body.nil? || body.empty? ? {} : body) if method == :post),
-               opts.timeout || @timeout, method == :get || !key.nil?, opts.max_retries || @max_retries)
+      headers = build_headers(opts, key)
+      payload = nil
+      if multipart
+        content_type, payload = Multipart.build(multipart)
+        headers['Content-Type'] = content_type
+      elsif method == :post
+        payload = JSON.generate(body.nil? || body.empty? ? {} : body)
+      end
+      Call.new(method, build_url(path, query), headers, payload, opts.timeout || @timeout,
+               retry_allowed?(method, key, retry_policy), opts.max_retries || @max_retries,
+               (multipart ? "[multipart/form-data, #{payload.bytesize} bytes]" : nil))
+    end
+
+    def retry_allowed?(method, key, policy)
+      case policy
+      when :never then false
+      when :safe then true
+      else method == :get || !key.nil?
+      end
     end
 
     def execute(call)
@@ -123,12 +147,12 @@ module StampMitra
     def retryable?(error)
       case error
       when ConnectionError then error.retryable?
-      else RETRY_STATUSES.include?(error.status)
+      else RETRY_STATUSES.include?(error.status) || (error.is_a?(ConflictError) && error.code == 'IDEMPOTENCY_IN_PROGRESS')
       end
     end
 
     def delay_for(error, attempt)
-      retry_after = error.is_a?(RateLimitError) ? error.retry_after : parse_retry_after(error.headers['retry-after'])
+      retry_after = error.respond_to?(:retry_after) ? error.retry_after : nil
       retry_after ? [retry_after, RETRY_AFTER_CAP].min : backoff(attempt)
     end
 
@@ -205,24 +229,32 @@ module StampMitra
       details = {
         status: status, code: string_or_nil(err['code']), field: string_or_nil(err['field']), headers: headers,
         request_id: string_or_nil(err['requestId']) || headers['x-request-id'],
+        details: safe_details(err['details']), retry_after: parse_retry_after(headers['retry-after']),
         body: if parsed.is_a?(Hash) || parsed.is_a?(Array)
                 parsed
               else
                 (text.to_s.empty? ? nil : text)
               end
       }
-      error_class(status).then do |klass|
-        if klass == RateLimitError
-          klass.new(message, retry_after: parse_retry_after(headers['retry-after']), **details)
-        else
-          klass.new(message, **details)
+      error_class(status).new(message, **details)
+    end
+
+    # Keeps the API's structured extras, with API keys scrubbed from every human-readable message inside.
+    def safe_details(value)
+      return nil unless value.is_a?(Hash)
+
+      copy = JSON.parse(JSON.generate(value))
+      if copy['errors'].is_a?(Array)
+        copy['errors'].each do |item|
+          item['message'] = Redaction.scrub_keys(item['message']) if item.is_a?(Hash) && item['message'].is_a?(String)
         end
       end
+      copy
     end
 
     def error_class(status)
       case status
-      when 400 then ValidationError
+      when 400, 422 then ValidationError
       when 401 then AuthenticationError
       when 402 then PaymentRequiredError
       when 403 then PermissionDeniedError
@@ -260,7 +292,7 @@ module StampMitra
     def log_request(call, attempt)
       debug do
         "stampmitra request attempt=#{attempt} #{call.verb.to_s.upcase} #{call.url} " \
-          "headers=#{JSON.generate(Redaction.headers(call.headers))} body=#{Redaction.body(call.payload)}"
+          "headers=#{JSON.generate(Redaction.headers(call.headers))} body=#{call.log_body || Redaction.body(call.payload)}"
       end
     end
 
