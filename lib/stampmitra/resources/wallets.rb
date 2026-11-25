@@ -37,7 +37,8 @@ module StampMitra
         @service_fee = ServiceFeeWallet.new(transport, **options)
       end
 
-      # Both wallets in one read (GET /v1/estamp/wallet): the Stamp Duty Wallet, and under +service_fee+ the Service Fee Wallet.
+      # Both wallets in one read (GET /v1/estamp/wallet): the Stamp duty wallet, and under +service_fee+
+      # (a name kept for compatibility) the Service wallet.
       #
       # @param options [Hash, nil]
       # @return [Models::EstampWallet]
@@ -133,7 +134,9 @@ module StampMitra
       end
     end
 
-    # The Service Fee Wallet (+client.wallets.service_fee+).
+    # The Service wallet (+client.wallets.service_fee+, a name kept for compatibility): one balance that pays for verification
+    # calls and for the service charges of an e-Stamp order. A top-up is a minimum of Rs 1,000 plus 18% GST; GST on fees is paid
+    # at top-up, so orders debit fees before GST.
     class ServiceFeeWallet < Base
       include WalletSupport
 

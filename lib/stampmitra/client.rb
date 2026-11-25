@@ -21,7 +21,8 @@ module StampMitra
     attr_reader :logs
     # @return [Resources::Webhooks] webhooks (+webhooks.events+)
     attr_reader :webhooks
-    # @return [Resources::Wallets] the Stamp Duty and Service Fee wallets (+wallets.stamp_duty+, +wallets.service_fee+)
+    # @return [Resources::Wallets] the Stamp duty wallet and the Service wallet (+wallets.stamp_duty+, +wallets.service_fee+;
+    #   the service-fee name is kept for compatibility)
     attr_reader :wallets
     # @return [Resources::Account] account balance and usage
     attr_reader :account

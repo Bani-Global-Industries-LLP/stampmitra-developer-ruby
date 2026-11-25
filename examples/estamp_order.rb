@@ -4,7 +4,7 @@
 #
 #   STAMPMITRA_API_KEY=sk_test_... ruby examples/estamp_order.rb [path/to/pan-card.pdf]
 #
-# The PAN card is advisory: an order is never held back without it. Set STAMPMITRA_BASE_URL=http://127.0.0.1:4010 to run
+# An order can be placed without the PAN card, but a PAN card is mandatory to complete the stamp. Set STAMPMITRA_BASE_URL=http://127.0.0.1:4010 to run
 # against the mock server from the spec repository.
 $LOAD_PATH.unshift File.expand_path('../lib', __dir__)
 require 'stampmitra'

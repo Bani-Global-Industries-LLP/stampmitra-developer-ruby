@@ -42,7 +42,7 @@ env = { 'STAMPMITRA_API_KEY' => KEY, 'STAMPMITRA_BASE_URL' => base }
   'examples/create_order.rb' => [[], /created \S+ at .*\nstatus: .*\ndocuments: .*HTTP 200, 1 attempt/],
   'examples/list_logs.rb' => [[], /pan\.verify.*\npage of \d+, next cursor:/],
   'examples/estamp_order.rb' => [[pan_card_pdf], /valid, quote:.*\ncreated estord_\S+ \(.*\nuploaded .*RECEIVED\neststamp_\S+: certificate/],
-  'examples/wallets.rb' => [%w[--topup 1000], /stamp duty: .*\nservice fee: .*\naccount: .*\ncredit .*payer pays/]
+  'examples/wallets.rb' => [%w[--topup 1000], /stamp duty: .*\nservice wallet: .*\naccount: .*\ncredit .*payer pays/]
 }.each do |script, (args, pattern)|
   out, status = Open3.capture2e(env, RbConfig.ruby, File.join(ROOT, script), *args)
   check.call(script, status.success? && out.match?(pattern), status.success? ? nil : out.lines.first(3).join)

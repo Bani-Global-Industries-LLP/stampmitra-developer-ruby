@@ -27,7 +27,10 @@ module StampMitra
                                                                                                             idempotent: false, retry_policy: :safe)
       end
 
-      # Creates an order (POST /v1/estamp/orders). Debits the Stamp Duty Wallet and the Service Fee Wallet. A 402 carries
+      # Creates an order (POST /v1/estamp/orders). Debits the duty from the Stamp duty wallet and the service charges from the Service wallet
+      # (Rs 99 procurement + Rs 5 API charge per paper plus a convenience fee, default 5% of a paper's duty above Rs 1,000; the duty
+      # is multiplied by quantity; sandbox quotes use the same default rates as live, client-agreed rates are not applied in
+      # sandbox). A 402 carries
       # +error.wallet+ ("STAMP_DUTY" or "SERVICE_FEE"); a 400 lists every finding in +error.errors+.
       #
       # @param stamps [Array<EstampStampLine, Hash>] one to 5000 lines, all in one state
@@ -110,9 +113,9 @@ module StampMitra
         api_get("/v1/estamp/orders/#{seg(id, :id)}/stamps", Models::EstampStampList, options: options)
       end
 
-      # Uploads the payer's PAN card (POST /v1/estamp/orders/:orderId/documents, multipart/form-data). The PAN card is
-      # advisory: it never blocks an order. An Idempotency-Key is generated (and reused across retries, re-sending the
-      # whole body) unless you pass one.
+      # Uploads the payer's PAN card (POST /v1/estamp/orders/:orderId/documents, multipart/form-data). An order can be placed
+      # without a PAN card, but a PAN card is mandatory to complete the stamp. An Idempotency-Key is generated (and reused
+      # across retries, re-sending the whole body) unless you pass one.
       #
       # @param order_id [String]
       # @param file [String, Pathname, #read] a path, or an IO / StringIO holding a PDF, JPEG or PNG of at most 10 MB

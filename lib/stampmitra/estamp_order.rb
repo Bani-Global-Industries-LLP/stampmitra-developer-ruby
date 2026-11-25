@@ -30,8 +30,9 @@ module StampMitra
   #
   # Required: +state+, +article_code+, +denomination+ (rupees, greater than 0) and +first_party+. Optional: +category+
   # (+e_stamp+ or +traditional_stamp+), +quantity+ (1 to 1000), +second_party+, +stamp_duty_payer+, +payer_phone+,
-  # +payer_gender+, +purpose+, +district+, +sro+, +cess_amount+, +property_area+, +pan_card_image+ (an +https://+ link,
-  # advisory only), +client_reference+, +cost_centre+, +business_unit+ and +linked_doc_ref+.
+  # +payer_gender+, +purpose+, +district+, +sro+, +cess_amount+, +property_area+, +pan_card_image+ (an +https://+ link; optional
+  # when placing the order, but a PAN card is mandatory to complete the stamp), +client_reference+, +cost_centre+,
+  # +business_unit+ and +linked_doc_ref+.
   EstampStampLine = Struct.new(
     :client_reference, :state, :category, :article_code, :denomination, :stamp_duty_payer, :payer_phone, :payer_gender,
     :first_party, :second_party, :purpose, :district, :sro, :cess_amount, :property_area, :pan_card_image, :cost_centre,

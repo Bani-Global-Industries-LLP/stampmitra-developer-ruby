@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-25
+
+Wording and snapshot refresh; tracks API contract 1.2.1. No method, class or constant is renamed.
+
+### Changed
+
+- YARD docs, README and examples describe one customer-facing **Service wallet** (the same balance pays for verification calls and
+  for the service charges of an e-Stamp order; a top-up is a minimum of Rs 1,000 plus 18% GST, and orders debit fees before GST
+  because GST on fees is paid at top-up) next to the **Stamp duty wallet**. `wallets.service_fee`, the `service_fee` member of
+  `wallets.get` and the `SERVICE_FEE` / `STAMP_DUTY` wallet values keep their names for compatibility.
+- PAN card: an order can be placed without `pan_card_image`, but a PAN card is mandatory to complete the stamp. Validation is
+  unchanged and the `PAN_CARD_RECOMMENDED` advisory keeps its name.
+- Pricing wording: per paper, Rs 99 procurement + Rs 5 API charge + a convenience fee (default 5% of a paper's duty above Rs 1,000),
+  duty multiplied by quantity; sandbox quotes use the same default rates as live (client-agreed rates are not applied in
+  sandbox). The README rate tables match the published price book (PAN Rs 4, GSTIN Rs 3, two self-serve plans). New accounts get
+  no signup credit.
+- `spec/openapi.json` refreshed to the spec repo's 1.2.1 and `lib/stampmitra/models.rb` regenerated (documentation text only).
+
 ## [0.2.0] - 2026-11-24
 
 Tracks StampMitra Developer API contract 1.2.0: 62 operations (was 31). Additive, with the behaviour changes listed under "Changed".
@@ -60,6 +78,7 @@ Tracks StampMitra Developer API contract 1.2.0: 62 operations (was 31). Additive
 - Zero runtime dependencies (standard library only); TLS verified, redirects never followed, secrets kept out of
   `inspect`/`to_s`/errors/logs.
 
-[Unreleased]: https://github.com/Bani-Global-Industries-LLP/stampmitra-developer-ruby/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Bani-Global-Industries-LLP/stampmitra-developer-ruby/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Bani-Global-Industries-LLP/stampmitra-developer-ruby/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Bani-Global-Industries-LLP/stampmitra-developer-ruby/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Bani-Global-Industries-LLP/stampmitra-developer-ruby/releases/tag/v0.1.0

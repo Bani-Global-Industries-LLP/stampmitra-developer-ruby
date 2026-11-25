@@ -11,7 +11,7 @@ Official Ruby client for the [StampMitra Developer API](https://developer.stampm
 Indian identity verification (PAN, GSTIN, vehicle RC, Voter ID, driving licence, passport, CIN, Udyam, bank account)
 and e-Stamp Paper. OpenAPI spec: <https://developer.stampmitra.in/openapi.json>.
 
-> **Status: pre-1.0 (0.2.0).** The API surface may change in minor releases. Pin your version.
+> **Status: pre-1.0 (0.2.1).** The API surface may change in minor releases. Pin your version.
 
 SDK guide: <https://developer.stampmitra.in/sdks/ruby> | API docs: <https://developer.stampmitra.in/docs>
 
@@ -19,7 +19,7 @@ SDK guide: <https://developer.stampmitra.in/sdks/ruby> | API docs: <https://deve
 
 ```ruby compile-only
 # Gemfile
-gem 'stampmitra', '~> 0.2.0'
+gem 'stampmitra', '~> 0.2.1'
 ```
 
 ```bash
@@ -154,7 +154,7 @@ end
   `father_husband_name` and `gender` (`MALE`, `FEMALE`, `OTHER`). Use the object when the state asks for an address or a father's or
   husband's name. `property_area` is `{ unit: 'Square Feet', value: 850 }`; the unit is one of `Square Feet`, `Square Yard`,
   `Square Meters` or `Not Applicable`.
-* **The PAN card is advisory:** it never blocks an order. Send `pan_card_image` (an `https://` link) on a stamp line, link one later
+* **The PAN card:** an order can be placed without one, but a PAN card is mandatory to complete the stamp (until one is on file the stamp waits). Send `pan_card_image` (an `https://` link) on a stamp line, link one later
   with `client.estamp.stamps.set_pan_card(stamp_id, pan_card_image: 'https://...')` (HTTP 202; it is checked afterwards, poll
   `stamps.get(stamp_id).pan_card.status`), or upload the file as above.
 * **Errors:** a 400 lists every finding in `error.errors`; a 402 names the short wallet in `error.wallet`; reuse of an idempotency key
@@ -162,7 +162,7 @@ end
 
 ### Wallets
 
-Orders debit two prepaid wallets: the **Stamp Duty** wallet (the duty) and the **Service Fee** wallet (fees).
+Orders debit two prepaid wallets: the **Stamp duty wallet** (the duty) and the **Service wallet** (one balance that also pays for verification calls and the service charges: Rs 99 procurement + Rs 5 API charge per paper plus a convenience fee, default 5% of a paper's duty above Rs 1,000, duty multiplied by quantity; a top-up is a minimum of Rs 1,000 plus 18% GST, and orders debit fees before GST because GST on fees is paid at top-up). Sandbox quotes use the same default rates as live; client-agreed rates are not applied in sandbox. The service-fee names (`wallets.service_fee`, the `service_fee` member of `wallets.get`, `SERVICE_FEE` in `error.wallet`) are kept for compatibility.
 
 ```ruby
 wallets = client.wallets.get # both wallets in one read
@@ -173,10 +173,10 @@ puts "payer pays #{topup.total_charged}: fee #{topup.processing_fee_amount} + GS
 puts client.wallets.stamp_duty.list_invoices.items.inspect # the GST tax invoices for the fees
 ```
 
-A Stamp Duty top-up adds a 6% processing fee plus 18% GST on that fee to what the payer pays; the wallet is credited the amount you
+A Stamp duty top-up adds a 6% processing fee plus 18% GST on that fee to what the payer pays; the wallet is credited the amount you
 add (`credit_amount`), and a GST tax invoice for the fee is available from `list_invoices` / `get_invoice` (`topup_id` is the invoice
 id, live keys only). **Read every figure from the response, never calculate it**: the rate can change. `base_amount`, `gst_amount`
-and `total_charged` are numbers on the Stamp Duty top-up; the other amounts are strings, and every amount of a Service Fee top-up
+and `total_charged` are numbers on the Stamp duty top-up; the other amounts are strings, and every amount of a Service wallet top-up
 is a string. Top-ups are never retried automatically. `client.account.balance` and `client.account.usage` read your API balance
 and usage.
 
@@ -355,27 +355,31 @@ logged.usage.summary
 
 ## Pricing
 
-The SDK is free and MIT-licensed. You pay only for successful API calls, from one prepaid wallet. Sandbox is free: mock data on every endpoint, and it never debits your wallet.
+The SDK is free and MIT-licensed. You pay only for successful API calls, from one prepaid **Service wallet**: the same balance pays for verification calls and for the service charges of an e-Stamp order. A Service wallet top-up is a minimum of ₹1,000 plus 18% GST; GST on fees is paid at top-up, so an order debits the fees before GST. New accounts get no signup credit. Sandbox is free: mock data on every endpoint, and it never debits your wallet.
 
-Per-call rates by plan, in rupees, excluding 18% GST:
+Per-call rates in rupees, excluding GST (the same on both self-serve plans):
 
-| Product | Pay-as-you-go | Growth | Scale | Startup | Enterprise |
-|---|---|---|---|---|---|
-| Standard verification (PAN, GSTIN, Voter ID, Driving Licence, CIN, Udyam, cross-lookups) | ₹5 | ₹4 | ₹3.50 | ₹4 | Custom |
-| Passport and Vehicle RC | ₹9 | ₹8.50 | ₹8 | ₹8.50 | Custom |
-| Bank account (penny-drop) | ₹4 | ₹4 | ₹4 | ₹4 | Custom |
-| e-Stamp API fee (StampMitra's charge only) | ₹5 | ₹4 | ₹3 | ₹4 | Custom |
+| Product | Rate per successful call |
+|---|---|
+| PAN | ₹4 |
+| GSTIN | ₹3 |
+| Voter ID, Driving Licence, CIN, PAN to GSTIN | ₹5 |
+| Udyam | ₹8.50 |
+| PAN to Udyam | ₹20 |
+| Passport and Vehicle RC | ₹9 |
+| Bank account (penny-drop) | ₹4 |
+| e-Stamp API charge (per paper, see below) | ₹5 |
 
-| | Sandbox | Pay-as-you-go | Growth | Scale | Startup | Enterprise |
-|---|---|---|---|---|---|---|
-| Plan fee | Free | ₹0 / month | ₹999 / month | ₹4,999 / month | Free for 6 months, then 50% off for 6 | Custom |
-| Seats / API keys / webhooks | 1 / 2 / 1 | 3 / 5 / 3 | 10 / 20 / 10 | 25 / 50 / 25 | 10 / 20 / 10 | Custom |
-| Requests per minute | 20 | 60 | 300 | 1,000 | 300 | Custom |
-| Log retention | 7 days | 30 days | 90 days | 365 days | 90 days | Custom |
-| IP allowlisting | No | No | Yes | Yes | Yes | Yes |
-| White-label and custom domain | No | No | No | Yes | No | Yes |
+| | Pay as you go | Business |
+|---|---|---|
+| Plan fee | ₹0 / month | ₹999 / month (₹9,990 / year) |
+| Seats / API keys / webhooks | 3 / 5 / 3 | 10 / 20 / 10 |
+| Requests per minute | 60 | 300 |
+| Daily limit per API | 100 | 500 |
+| Log retention | 30 days | 90 days |
+| IP allowlisting | No | Yes |
 
-Growth and Scale are also available yearly (₹9,990 and ₹49,990, two months free). There are separate Startup and NGO programmes. Plans, rates and limits can change, and [developer.stampmitra.in/pricing](https://developer.stampmitra.in/pricing) is the source of truth; see it for how an e-Stamp order is priced in total. API e-Stamp orders are charged per paper as a procurement charge plus an API charge (excluding GST); the pricing page has the current rates.
+An e-Stamp order is priced per paper: ₹99 procurement + ₹5 API charge + a convenience fee (default 5% of a paper's duty above ₹1,000), and the duty is multiplied by quantity. The duty is paid from the **Stamp duty wallet**; the service charges are paid from the Service wallet. Sandbox quotes use the same default rates as live; client-agreed rates are not applied in sandbox. There are separate Startup and NGO programmes. Plans, rates and limits can change, and [developer.stampmitra.in/pricing](https://developer.stampmitra.in/pricing) is the source of truth.
 
 ## Security
 

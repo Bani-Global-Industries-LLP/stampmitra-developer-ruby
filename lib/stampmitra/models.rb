@@ -992,7 +992,7 @@ module StampMitra
       attribute :next_cursor
     end
 
-    # Priced totals in rupees. Never recalculate or override them. What the customer pays for the order is faceValueTotal + serviceFeeTotal + gstOnFee.
+    # Priced totals in rupees. Never recalculate or override them. A sandbox key gets the same figures a live key would for the same lines. What the customer pays for the order is faceValueTotal + serviceFeeTotal + gstOnFee.
     class EstampOrderQuote < Model
       # @!attribute [r] face_value_total
       #   @return [Float] Government duty (face value) for the whole order, in rupees. Paid from the Stamp Duty Wallet.
@@ -1007,7 +1007,7 @@ module StampMitra
       attribute :gst_on_fee
 
       # @!attribute [r] service_wallet_debit_total
-      #   @return [Float] What the Service Fee Wallet is debited when the order is created (the service charges net of GST), in rupees.
+      #   @return [Float] What the Service wallet is debited when the order is created (the service charges net of GST), in rupees.
       attribute :service_wallet_debit_total
     end
 
@@ -1018,7 +1018,7 @@ module StampMitra
       attribute :type
 
       # @!attribute [r] required
-      #   @return [Boolean] Always false: the payer's PAN card is advisory and an order is never held back for want of it.
+      #   @return [Boolean] Always false: an order is accepted without the payer's PAN card, but the stamp cannot be completed until one is on file.
       attribute :required
 
       # @!attribute [r] recommended
@@ -1200,7 +1200,7 @@ module StampMitra
       attribute :first_party_address_required
 
       # @!attribute [r] pan_card_image_required
-      #   @return [Boolean, nil] Whether the state asks for the payer's PAN card. Recommended, never blocking. null means not known.
+      #   @return [Boolean, nil] Whether the state asks for the payer's PAN card. Whether the state asks for it; the order is accepted without it but the stamp cannot be completed until a PAN card is on file. null means not known.
       attribute :pan_card_image_required
 
       # @!attribute [r] instrument_count
@@ -1435,7 +1435,7 @@ module StampMitra
       attribute :status
     end
 
-    # State of the payer's PAN card for one stamp. Advisory: a stamp without one is not held back. After FAILED or REJECTED, send a new link with POST /v1/estamp/stamps/{stampId}/pan-card.
+    # State of the payer's PAN card for one stamp. A stamp without one is accepted but cannot be completed until a PAN card is on file. After FAILED or REJECTED, send a new link with POST /v1/estamp/stamps/{stampId}/pan-card.
     class EstampPanCardStatus < Model
       # @!attribute [r] status
       #   @return [String] NOT_PROVIDED (none sent), PROCESSING, VERIFIED, IN_REVIEW, REJECTED or FAILED.
@@ -1569,7 +1569,7 @@ module StampMitra
       attribute :available
     end
 
-    # Both e-Stamp wallets in one read: the Stamp Duty Wallet and, under serviceFee, the Service Fee Wallet.
+    # Both wallets in one read: the Stamp Duty Wallet and, under serviceFee, your Service wallet (the field name is kept for compatibility).
     class EstampWallet < Model
       # @!attribute [r] balance
       #   @return [String] Stamp Duty Wallet balance, as a decimal string.
@@ -1588,7 +1588,7 @@ module StampMitra
       attribute :currency
 
       # @!attribute [r] service_fee
-      #   @return [EstampWalletPart] The Service Fee Wallet.
+      #   @return [EstampWalletPart] Your Service wallet (the field name is kept for compatibility). The same balance pays for verification calls and for the service charges of an e-Stamp order.
       attribute :service_fee, model: EstampWalletPart
 
       # @!attribute [r] mode
@@ -1657,7 +1657,7 @@ module StampMitra
       attribute :next_cursor
     end
 
-    # A GST tax invoice for one Service Fee Wallet top-up.
+    # A GST tax invoice for one Service wallet top-up.
     class WalletInvoice < Model
       # @!attribute [r] id
       #   @return [String] Invoice id.
@@ -1700,7 +1700,7 @@ module StampMitra
       attribute :paid_at
     end
 
-    # One page of Service Fee Wallet top-up invoices. A sandbox top-up is fake credit and produces no invoice, so a sandbox key always gets an empty page.
+    # One page of Service wallet top-up invoices. A sandbox top-up is fake credit and produces no invoice, so a sandbox key always gets an empty page.
     class WalletInvoicesPage < Model
       # @!attribute [r] items
       #   @return [Array<WalletInvoice>] Invoices, newest first.
@@ -1836,7 +1836,7 @@ module StampMitra
       attribute :notice
     end
 
-    # A Service Fee Wallet top-up: the Razorpay order to pay and the GST breakdown. A GST invoice is issued for the top-up. The wallet is credited automatically when the payment succeeds.
+    # A Service wallet top-up (the route keeps its service-fee-wallet name for compatibility): the Razorpay order to pay and the GST breakdown. A GST invoice is issued for the top-up. The wallet is credited automatically when the payment succeeds.
     class ServiceFeeWalletTopup < Model
       # @!attribute [r] base_amount
       #   @return [String] The amount you asked for (what the wallet is credited with), as a decimal string.
@@ -1847,11 +1847,11 @@ module StampMitra
       attribute :gst_amount
 
       # @!attribute [r] processing_fee_percent
-      #   @return [String] Always 0.00 for the Service Fee Wallet.
+      #   @return [String] Always 0.00 for the Service wallet.
       attribute :processing_fee_percent
 
       # @!attribute [r] processing_fee_amount
-      #   @return [String] Always 0.00 for the Service Fee Wallet.
+      #   @return [String] Always 0.00 for the Service wallet.
       attribute :processing_fee_amount
 
       # @!attribute [r] credit_amount
