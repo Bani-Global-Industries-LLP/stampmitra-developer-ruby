@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Reads both e-Stamp wallets and the account balance, and (with --topup AMOUNT) starts a Stamp Duty top-up.
+# Reads both wallets (Stamp duty and Service) and the account balance, and (with --topup AMOUNT) starts a Stamp duty top-up.
 #
 #   STAMPMITRA_API_KEY=sk_test_... ruby examples/wallets.rb [--topup 1000]
 #
@@ -17,7 +17,7 @@ client = StampMitra::Client.new(
 
 wallets = client.wallets.get
 puts "stamp duty: #{wallets.available} available of #{wallets.balance} #{wallets.currency}"
-puts "service fee: #{wallets.service_fee.available} available of #{wallets.service_fee.balance}"
+puts "service wallet: #{wallets.service_fee.available} available of #{wallets.service_fee.balance}"
 puts "account: #{client.account.balance.state}"
 
 if ARGV[0] == '--topup'
